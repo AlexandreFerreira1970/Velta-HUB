@@ -1,0 +1,175 @@
+@import "tailwindcss";
+
+/* ─── Velta Design System ─── */
+
+:root {
+  /* Brand */
+  --navy: #0c1a2e;
+  --azure: #1d4ed8;
+  --azure-hover: #1e40af;
+  --azure-light: #dbeafe;
+  --azure-ring: rgba(29, 78, 216, 0.25);
+
+  /* Ink (text hierarchy) */
+  --ink-primary: #0c1a2e;
+  --ink-secondary: #475569;
+  --ink-tertiary: #94a3b8;
+  --ink-muted: #cbd5e1;
+  --ink-inverse: #f8fafc;
+
+  /* Surfaces (elevation) */
+  --canvas: #f1f5f9;
+  --surface-0: #ffffff;
+  --surface-1: #f8fafc;
+  --surface-2: #e2e8f0;
+
+  /* Borders */
+  --steel: #cbd5e1;
+  --steel-soft: #e2e8f0;
+  --steel-strong: #94a3b8;
+  --steel-focus: #1d4ed8;
+
+  /* Controls */
+  --control-bg: #f8fafc;
+  --control-border: #cbd5e1;
+  --control-border-focus: #1d4ed8;
+
+  /* Semantic */
+  --semantic-error: #dc2626;
+  --semantic-error-bg: #fef2f2;
+  --semantic-error-border: #fca5a5;
+  --semantic-success: #16a34a;
+  --semantic-warning: #d97706;
+
+  /* Radius */
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 4px;
+
+  /* Spacing base: 4px */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Type scale */
+  --text-display-size: 30px;
+  --text-display-weight: 700;
+  --text-display-leading: 1.2;
+  --text-display-tracking: -0.02em;
+
+  --text-title-size: 24px;
+  --text-title-weight: 600;
+  --text-title-leading: 1.25;
+  --text-title-tracking: -0.015em;
+
+  --text-heading-size: 18px;
+  --text-heading-weight: 600;
+  --text-heading-leading: 1.4;
+  --text-heading-tracking: -0.01em;
+
+  --text-subheading-size: 15px;
+  --text-subheading-weight: 600;
+  --text-subheading-leading: 1.4;
+  --text-subheading-tracking: 0em;
+
+  --text-body-size: 14px;
+  --text-body-weight: 400;
+  --text-body-leading: 1.6;
+  --text-body-tracking: 0em;
+
+  --text-body-sm-size: 13px;
+  --text-body-sm-weight: 400;
+  --text-body-sm-leading: 1.5;
+  --text-body-sm-tracking: 0em;
+
+  --text-label-size: 11px;
+  --text-label-weight: 500;
+  --text-label-leading: 1.4;
+  --text-label-tracking: 0.06em;
+
+  --text-caption-size: 11px;
+  --text-caption-weight: 400;
+  --text-caption-leading: 1.4;
+  --text-caption-tracking: 0.01em;
+
+  --text-overline-size: 10px;
+  --text-overline-weight: 600;
+  --text-overline-leading: 1.6;
+  --text-overline-tracking: 0.1em;
+
+  --text-numeric-size: 14px;
+  --text-numeric-weight: 400;
+  --text-numeric-leading: 1.5;
+  --text-numeric-tracking: 0em;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Brand (dark) */
+    --navy: #e2e8f0;
+    --azure: #3b82f6;
+    --azure-hover: #60a5fa;
+    --azure-light: #1e3a5f;
+    --azure-ring: rgba(59, 130, 246, 0.3);
+
+    /* Ink (dark) */
+    --ink-primary: #e2e8f0;
+    --ink-secondary: #94a3b8;
+    --ink-tertiary: #64748b;
+    --ink-muted: #475569;
+    --ink-inverse: #0f172a;
+
+    /* Surfaces (dark) */
+    --canvas: #0f172a;
+    --surface-0: #1e293b;
+    --surface-1: #0f172a;
+    --surface-2: #334155;
+
+    /* Borders (dark) */
+    --steel: #334155;
+    --steel-soft: #1e293b;
+    --steel-strong: #475569;
+    --steel-focus: #3b82f6;
+
+    /* Controls (dark) */
+    --control-bg: #1e293b;
+    --control-border: #334155;
+    --control-border-focus: #3b82f6;
+
+    /* Semantic (dark) */
+    --semantic-error: #f87171;
+    --semantic-error-bg: #1c0a0a;
+    --semantic-error-border: #7f1d1d;
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-navy: var(--navy);
+  --color-azure: var(--azure);
+  --color-ink-primary: var(--ink-primary);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-tertiary: var(--ink-tertiary);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-inverse: var(--ink-inverse);
+  --color-steel: var(--steel);
+  --color-steel-soft: var(--steel-soft);
+  --color-steel-strong: var(--steel-strong);
+  --color-error: var(--semantic-error);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink-primary);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
