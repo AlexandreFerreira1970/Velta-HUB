@@ -21,10 +21,10 @@ export async function getConversation(
 ): Promise<ConversationDoc | null> {
   const container = await getContainer("conversations");
 
-  const id = "conversation-" + userId;
-
   try {
-    const { resource } = await container.item(id, id).read<ConversationDoc>();
+    const { resource } = await container
+      .item(userId, userId)
+      .read<ConversationDoc>();
     return resource ?? null;
   } catch {
     return null;
