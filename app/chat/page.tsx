@@ -240,7 +240,15 @@ export default function ChatPage() {
           </div>
           <Text variant="subheading" as="span" style={{ color: 'var(--navy)' }}>Velta</Text>
           <span style={{ color: 'var(--steel)', fontSize: 16, userSelect: 'none' }}>|</span>
-          <Text variant="body-sm" color="tertiary">Assistente</Text>
+          <a href="/hub" style={{ textDecoration: 'none' }}>
+            <Text variant="body-sm" color="tertiary">Hub</Text>
+          </a>
+          <span style={{ color: 'var(--steel)', fontSize: 16, userSelect: 'none' }}>|</span>
+          <a href="/hub/history" style={{ textDecoration: 'none' }}>
+            <Text variant="body-sm" color="tertiary">Histórico</Text>
+          </a>
+          <span style={{ color: 'var(--steel)', fontSize: 16, userSelect: 'none' }}>|</span>
+          <Text variant="body-sm" color="secondary">Assistente</Text>
         </div>
 
         <div className="flex items-center gap-4">

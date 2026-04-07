@@ -9,7 +9,7 @@ const databaseId = process.env.COSMOS_DATABASE ?? "velta";
 
 const cache = new Map<string, Container>();
 
-export async function getContainer(containerId: string): Promise<Container> {
+export async function getContainer(containerId: string, partitionKeyPath = "/id"): Promise<Container> {
   const cached = cache.get(containerId);
   if (cached) return cached;
 
@@ -18,7 +18,7 @@ export async function getContainer(containerId: string): Promise<Container> {
   });
   const { container } = await database.containers.createIfNotExists({
     id: containerId,
-    partitionKey: { paths: ["/id"] },
+    partitionKey: { paths: [partitionKeyPath] },
   });
 
   cache.set(containerId, container);
