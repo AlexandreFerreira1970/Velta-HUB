@@ -16,7 +16,12 @@ export async function upsertUser(data: UpsertInput): Promise<VeltaUser> {
   }
 
   const user: VeltaUser = {
-    ...data,
+    ...existing,
+    id: data.id,
+    email: data.email,
+    name: data.name,
+    image: data.image,
+    provider: data.provider,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     lastLoginAt: now,
@@ -24,6 +29,18 @@ export async function upsertUser(data: UpsertInput): Promise<VeltaUser> {
 
   await container.items.upsert(user)
   return user
+}
+
+export async function updateUserProfile(
+  id: string,
+  data: { companyName?: string; businessType?: string },
+): Promise<VeltaUser | null> {
+  const existing = await getUserById(id)
+  if (!existing) return null
+  const updated: VeltaUser = { ...existing, ...data, updatedAt: new Date().toISOString() }
+  const container = await getContainer('users')
+  await container.items.upsert(updated)
+  return updated
 }
 
 export async function getUserById(id: string): Promise<VeltaUser | null> {

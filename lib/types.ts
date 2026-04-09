@@ -4,6 +4,8 @@ export interface VeltaUser {
   name: string
   image?: string | null
   provider: 'google'
+  companyName?: string
+  businessType?: string
   createdAt: string    // ISO 8601
   updatedAt: string
   lastLoginAt: string

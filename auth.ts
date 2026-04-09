@@ -11,9 +11,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   callbacks: {
     async signIn({ user, account }) {
-      if (account?.provider === 'google' && user.id && user.email) {
+      if (account?.provider === 'google' && account.providerAccountId && user.email) {
         await upsertUser({
-          id: user.id,
+          id: account.providerAccountId,
           email: user.email,
           name: user.name ?? '',
           image: user.image,
@@ -21,6 +21,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         })
       }
       return true
+    },
+    async jwt({ token, account }) {
+      if (account?.providerAccountId) {
+        token.sub = account.providerAccountId
+      }
+      return token
     },
     async session({ session, token }) {
       if (token.sub) {
