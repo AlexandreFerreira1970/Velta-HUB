@@ -307,6 +307,11 @@ export default function HubResultPage() {
           <Text variant="subheading" as="span" style={{ color: "var(--navy)" }}>
             Velta
           </Text>
+          <span
+            style={{ color: "var(--steel)", fontSize: 16, userSelect: "none" }}
+          >
+            |
+          </span>
           <a href="/chat" style={{ textDecoration: "none" }}>
             <Text variant="body-sm" color="tertiary">
               Assistente

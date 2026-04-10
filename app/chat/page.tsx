@@ -1429,7 +1429,8 @@ export default function ChatPage() {
                     )}
                     {hubAnalysisStatus === "error" && (
                       <span style={{ color: "var(--error, #e53e3e)" }}>
-                        Não foi possível gerar a análise. Tente novamente mais tarde.
+                        Não foi possível gerar a análise. Tente novamente mais
+                        tarde.
                       </span>
                     )}
                   </div>
