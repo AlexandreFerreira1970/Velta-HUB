@@ -33,7 +33,7 @@ export async function upsertUser(data: UpsertInput): Promise<VeltaUser> {
 
 export async function updateUserProfile(
   id: string,
-  data: { companyName?: string; businessType?: string },
+  data: { companyName?: string; businessType?: string; hubAnalysisDone?: boolean },
 ): Promise<VeltaUser | null> {
   const existing = await getUserById(id)
   if (!existing) return null

@@ -7,7 +7,8 @@ import type { HubInput, DecisionOutput, HubDataDoc, DecisionRecord } from './typ
 export async function saveHubData(
   userId: string,
   input: HubInput,
-  output: DecisionOutput
+  output: DecisionOutput,
+  conversationId?: string,
 ): Promise<HubDataDoc> {
   const container = await getContainer('hub_data', '/userId')
   const now = new Date().toISOString()
@@ -15,6 +16,7 @@ export async function saveHubData(
   const doc: HubDataDoc = {
     id: `${userId}-${Date.now()}`,
     userId,
+    ...(conversationId ? { conversationId } : {}),
     input,
     output,
     createdAt: now,

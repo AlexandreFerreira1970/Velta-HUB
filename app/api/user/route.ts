@@ -24,10 +24,11 @@ export async function PATCH(req: Request): Promise<Response> {
     return new Response('Invalid JSON', { status: 400 })
   }
 
-  const { companyName, businessType } = body as Record<string, unknown>
-  const update: { companyName?: string; businessType?: string } = {}
-  if (typeof companyName === 'string' && companyName.trim()) update.companyName = companyName.trim()
-  if (typeof businessType === 'string' && businessType.trim()) update.businessType = businessType.trim()
+  const b = body as Record<string, unknown>
+  const update: { companyName?: string; businessType?: string; hubAnalysisDone?: boolean } = {}
+  if (typeof b.companyName === 'string' && b.companyName.trim()) update.companyName = b.companyName.trim()
+  if (typeof b.businessType === 'string' && b.businessType.trim()) update.businessType = b.businessType.trim()
+  if (typeof b.hubAnalysisDone === 'boolean') update.hubAnalysisDone = b.hubAnalysisDone
 
   if (!Object.keys(update).length) return new Response('No valid fields', { status: 400 })
 

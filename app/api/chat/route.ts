@@ -3,6 +3,7 @@ import {
   getConversation,
   saveLastResponseId,
   appendMessage,
+  markInitialAnalysisSent,
 } from "@/lib/conversations";
 import { getOpenAIClient } from "@/lib/foundry";
 
@@ -12,14 +13,24 @@ const AGENT_NAME = process.env.AZURE_FOUNDRY_AGENT_NAME!;
 const AGENT_VERSION = process.env.AZURE_FOUNDRY_AGENT_VERSION ?? "1";
 
 // GET — load conversation history
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return new Response("Unauthorized", { status: 401 });
     }
-    const doc = await getConversation(session.user.id);
-    return Response.json({ messages: doc?.messages ?? [] });
+
+    const url = new URL(req.url);
+    const conversationId = url.searchParams.get("conversationId");
+    if (!conversationId) {
+      return new Response("conversationId is required", { status: 400 });
+    }
+
+    const doc = await getConversation(conversationId, session.user.id);
+    return Response.json({
+      messages: doc?.messages ?? [],
+      initialAnalysisMessageSentAt: doc?.initialAnalysisMessageSentAt ?? null,
+    });
   } catch (error) {
     console.error("[chat GET]", error);
     return new Response("Internal server error", { status: 500 });
@@ -34,19 +45,25 @@ export async function POST(req: Request) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    const { content } = (await req.json()) as { content: string };
+    const { content, conversationId } = (await req.json()) as {
+      content: string;
+      conversationId: string;
+    };
     if (!content?.trim()) {
       return new Response("content is required", { status: 400 });
+    }
+    if (!conversationId) {
+      return new Response("conversationId is required", { status: 400 });
     }
 
     const userId = session.user.id;
     const openAI = getOpenAIClient();
 
-    const existing = await getConversation(userId);
+    const existing = await getConversation(conversationId, userId);
     const lastResponseId = existing?.lastResponseId ?? null;
 
     // Save user message
-    await appendMessage(userId, {
+    await appendMessage(conversationId, userId, {
       role: "user",
       content,
       timestamp: new Date().toISOString(),
@@ -60,9 +77,6 @@ export async function POST(req: Request) {
         let newResponseId: string | null = null;
 
         try {
-          // responses.create IS patched by the Azure SDK overwrite —
-          // it merges options.body into the request body, so the agent
-          // reference reaches the Azure endpoint correctly.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const stream = (await openAI.responses.create(
             {
@@ -74,10 +88,16 @@ export async function POST(req: Request) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } as any,
             {
-              body: { agent: { name: AGENT_NAME, version: AGENT_VERSION, type: "agent_reference" } },
+              body: {
+                agent: {
+                  name: AGENT_NAME,
+                  version: AGENT_VERSION,
+                  type: "agent_reference",
+                },
+              },
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } as any,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
           )) as any;
 
           for await (const event of stream) {
@@ -110,14 +130,14 @@ export async function POST(req: Request) {
           }
 
           // Persist assistant reply + update lastResponseId
-          await appendMessage(userId, {
+          await appendMessage(conversationId, userId, {
             role: "assistant",
             content: fullText,
             timestamp: new Date().toISOString(),
           });
 
           if (newResponseId) {
-            await saveLastResponseId(userId, newResponseId);
+            await saveLastResponseId(conversationId, userId, newResponseId);
           }
 
           controller.enqueue(
@@ -145,6 +165,29 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("[chat POST]", error);
+    return new Response("Internal server error", { status: 500 });
+  }
+}
+
+// PATCH — mark initial analysis message as sent
+export async function PATCH(req: Request) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
+    const { conversationId } = (await req.json()) as {
+      conversationId: string;
+    };
+    if (!conversationId) {
+      return new Response("conversationId is required", { status: 400 });
+    }
+
+    await markInitialAnalysisSent(conversationId, session.user.id);
+    return new Response(null, { status: 204 });
+  } catch (error) {
+    console.error("[chat PATCH]", error);
     return new Response("Internal server error", { status: 500 });
   }
 }
