@@ -401,6 +401,10 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [hubAnalysisStatus, setHubAnalysisStatus] = useState<
+    "idle" | "loading" | "done" | "error"
+  >("idle");
+  const hubAnalysisConvIdRef = useRef<string | null>(null);
 
   // Conversation list
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -915,14 +919,26 @@ export default function ChatPage() {
           botMsg(`hub-thanks-${Date.now()}`, thankYouContent),
         ]);
 
-        // Dispara análise em background (fire-and-forget)
+        // Dispara análise e aguarda o resultado
+        hubAnalysisConvIdRef.current = convId;
+        setHubAnalysisStatus("loading");
+        setOnboardingStep("done");
+
         fetch("/api/hub/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ conversationId: convId }),
-        }).catch(console.error);
-
-        setOnboardingStep("done");
+        })
+          .then(async (res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            sessionStorage.setItem(
+              "hub_result",
+              JSON.stringify({ output: data.output, conversationId: convId }),
+            );
+            setHubAnalysisStatus("done");
+          })
+          .catch(() => setHubAnalysisStatus("error"));
       } else {
         setMessages((prev) => [...prev, ...headers, question!]);
         setHubQuestionIndex(nextQuestionIndex);
@@ -1368,6 +1384,56 @@ export default function ChatPage() {
                     userName={session?.user?.name}
                   />
                 ))
+              )}
+              {hubAnalysisStatus !== "idle" && (
+                <div className="flex items-start gap-2">
+                  <AgentAvatar />
+                  <div
+                    className="px-4 py-3 text-sm leading-relaxed"
+                    style={{
+                      background: "var(--surface-0)",
+                      color: "var(--ink-primary)",
+                      border: "1px solid var(--steel-soft)",
+                      borderRadius: "2px 12px 12px 12px",
+                    }}
+                  >
+                    {hubAnalysisStatus === "loading" && (
+                      <span className="inline-flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1">
+                          {[0, 1, 2].map((i) => (
+                            <span
+                              key={i}
+                              className="inline-block w-1.5 h-1.5 rounded-full animate-bounce"
+                              style={{
+                                background: "var(--steel)",
+                                animationDelay: `${i * 150}ms`,
+                                animationDuration: "900ms",
+                              }}
+                            />
+                          ))}
+                        </span>
+                        Estou gerando sua análise...
+                      </span>
+                    )}
+                    {hubAnalysisStatus === "done" && (
+                      <span>
+                        Análise concluída!{" "}
+                        <a
+                          href="/hub/result"
+                          className="underline font-medium"
+                          style={{ color: "var(--azure)" }}
+                        >
+                          Clique aqui para visualizar →
+                        </a>
+                      </span>
+                    )}
+                    {hubAnalysisStatus === "error" && (
+                      <span style={{ color: "var(--error, #e53e3e)" }}>
+                        Não foi possível gerar a análise. Tente novamente mais tarde.
+                      </span>
+                    )}
+                  </div>
+                </div>
               )}
               <div ref={bottomRef} />
             </div>
