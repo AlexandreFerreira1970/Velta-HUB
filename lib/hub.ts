@@ -26,6 +26,22 @@ export async function saveHubData(
   return doc
 }
 
+export async function updateHubDataActions(
+  docId: string,
+  userId: string,
+  actions: string[],
+): Promise<void> {
+  const container = await getContainer('hub_data', '/userId')
+  const { resource: existing } = await container
+    .item(docId, userId)
+    .read<HubDataDoc>()
+
+  if (!existing) return
+
+  existing.output.actions = actions
+  await container.items.upsert(existing)
+}
+
 export async function getHubHistory(userId: string): Promise<HubDataDoc[]> {
   const container = await getContainer('hub_data', '/userId')
 

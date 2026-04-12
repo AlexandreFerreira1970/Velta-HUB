@@ -4,6 +4,7 @@ import {
   saveLastResponseId,
   appendMessage,
   markInitialAnalysisSent,
+  updateHubQuestionIndex,
 } from "@/lib/conversations";
 import { getOpenAIClient } from "@/lib/foundry";
 
@@ -30,6 +31,7 @@ export async function GET(req: Request) {
     return Response.json({
       messages: doc?.messages ?? [],
       initialAnalysisMessageSentAt: doc?.initialAnalysisMessageSentAt ?? null,
+      hubQuestionIndex: doc?.hubQuestionIndex ?? null,
     });
   } catch (error) {
     console.error("[chat GET]", error);
@@ -169,7 +171,7 @@ export async function POST(req: Request) {
   }
 }
 
-// PATCH — mark initial analysis message as sent
+// PATCH — update conversation metadata (initial analysis sent, hub flow state)
 export async function PATCH(req: Request) {
   try {
     const session = await auth();
@@ -177,14 +179,24 @@ export async function PATCH(req: Request) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    const { conversationId } = (await req.json()) as {
+    const body = (await req.json()) as {
       conversationId: string;
+      hubQuestionIndex?: number | null;
     };
-    if (!conversationId) {
+    if (!body.conversationId) {
       return new Response("conversationId is required", { status: 400 });
     }
 
-    await markInitialAnalysisSent(conversationId, session.user.id);
+    if (body.hubQuestionIndex !== undefined) {
+      await updateHubQuestionIndex(
+        body.conversationId,
+        session.user.id,
+        body.hubQuestionIndex,
+      );
+    } else {
+      await markInitialAnalysisSent(body.conversationId, session.user.id);
+    }
+
     return new Response(null, { status: 204 });
   } catch (error) {
     console.error("[chat PATCH]", error);

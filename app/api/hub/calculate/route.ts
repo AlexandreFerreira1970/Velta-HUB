@@ -53,9 +53,10 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
+    const conversationId = (body as unknown as Record<string, unknown>).conversationId as string | undefined
     const output = runScoringEngine(body)
-    await saveHubData(session.user.id, body, output)
-    return Response.json({ output })
+    const doc = await saveHubData(session.user.id, body, output, conversationId)
+    return Response.json({ output, hubDataId: doc.id })
   } catch (err) {
     console.error('[hub/calculate]', err)
     return new Response('Internal server error', { status: 500 })

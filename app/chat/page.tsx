@@ -3,9 +3,17 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import { Text } from "@/components/ui";
+import { Text, Button, Input } from "@/components/ui";
 import type { ChatMessage, ConversationSummary } from "@/lib/conversations";
-import type { DecisionOutput } from "@/lib/types";
+import type {
+  DecisionOutput,
+  HubInput,
+  RHInput,
+  FINInput,
+  LOGInput,
+  MKTInput,
+  ESGInput,
+} from "@/lib/types";
 import Markdown from "react-markdown";
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
@@ -181,6 +189,128 @@ function MessageBubble({
   );
 }
 
+// ─── Qualitative options ────────────────────────────────────────────────────
+
+const QUALITATIVE_OPTIONS = [
+  { label: "Muito Ruim", value: 10 },
+  { label: "Ruim", value: 30 },
+  { label: "Razoável", value: 50 },
+  { label: "Bom", value: 70 },
+  { label: "Excelente", value: 90 },
+] as const;
+
+// ─── Inline Hub Response Components ───────────────────────────────────────────
+
+function QualitativeResponse({
+  onSelect,
+  disabled,
+  selectedValue,
+}: {
+  onSelect: (value: number) => void;
+  disabled: boolean;
+  selectedValue: number | null;
+}) {
+  return (
+    <div className="flex items-start gap-2 ml-10">
+      <div className="flex flex-wrap gap-2">
+        {QUALITATIVE_OPTIONS.map((opt) => (
+          <Button
+            key={opt.value}
+            variant={selectedValue === opt.value ? "primary" : "secondary"}
+            size="sm"
+            disabled={disabled}
+            onClick={() => onSelect(opt.value)}
+          >
+            {opt.label}
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function QuantitativeResponse({
+  onSubmit,
+  disabled,
+  submittedValue,
+}: {
+  onSubmit: (value: number) => void;
+  disabled: boolean;
+  submittedValue: number | null;
+}) {
+  const [localValue, setLocalValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = () => {
+    const trimmed = localValue.trim();
+    if (trimmed === "") {
+      setError("Por favor, informe um valor numérico entre 0 e 100.");
+      return;
+    }
+    const n = Number(trimmed);
+    if (isNaN(n) || !Number.isFinite(n) || n < 0 || n > 100) {
+      setError("Por favor, informe um valor numérico entre 0 e 100.");
+      return;
+    }
+    setError(null);
+    onSubmit(Math.round(n));
+  };
+
+  if (submittedValue !== null) {
+    return (
+      <div className="flex items-center gap-2 ml-10">
+        <div
+          className="px-3 py-1.5 rounded-[var(--radius-sm)] text-sm font-medium"
+          style={{
+            background: "var(--navy)",
+            color: "var(--ink-inverse)",
+          }}
+        >
+          {submittedValue}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5 ml-10 max-w-xs">
+      <div className="flex items-end gap-2">
+        <div className="flex-1">
+          <Input
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            placeholder="0 – 100"
+            value={localValue}
+            error={error ?? undefined}
+            disabled={disabled}
+            onChange={(e) => {
+              setLocalValue(e.target.value);
+              if (error) setError(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
+          />
+        </div>
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={disabled}
+          onClick={handleSubmit}
+          style={{ marginBottom: error ? 20 : 0 }}
+        >
+          Confirmar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Onboarding / Hub flow types ──────────────────────────────────────────────
 
 type OnboardingStep =
@@ -201,32 +331,54 @@ function botMsg(id: string, content: string): ChatMessage {
 
 // ─── Hub analysis questions (in order of pillar) ──────────────────────────────
 
-const HUB_FLOW: Array<{ type: "header" | "question"; content: string }> = [
+type HubFlowItem =
+  | { type: "header"; content: string }
+  | {
+      type: "question";
+      content: string;
+      dimension: "rh" | "fin" | "log" | "mkt" | "esg";
+      field: string;
+      inputType: "qualitative" | "quantitative";
+    };
+
+const HUB_FLOW: HubFlowItem[] = [
   // ── RH ──────────────────────────────────────────────────────────────────
   {
     type: "header",
     content:
-      "Ótimo! Agora vou fazer algumas perguntas sobre a operação da sua empresa para realizar a análise estratégica. Começaremos pelo pilar de Recursos Humanos.",
+      "Bem-vindo ao HUB VELTA.\nEste sistema irá conduzir uma análise estruturada da sua organização.\nResponda às perguntas conforme solicitado para gerar um diagnóstico estratégico preciso.\n\nComeçaremos pelo pilar de Recursos Humanos.",
   },
   {
     type: "question",
     content:
       "Como você descreveria o clima organizacional? Os colaboradores parecem satisfeitos e motivados no dia a dia?",
+    dimension: "rh",
+    field: "clima",
+    inputType: "qualitative",
   },
   {
     type: "question",
     content:
       "Como é o engajamento da equipe? Eles se envolvem ativamente com os objetivos e iniciativas da empresa?",
+    dimension: "rh",
+    field: "engajamento",
+    inputType: "qualitative",
   },
   {
     type: "question",
     content:
-      "A empresa tem enfrentado muitas saídas voluntárias de colaboradores recentemente? Como está a retenção de talentos?",
+      "Qual é a taxa de turnover (rotatividade) da empresa? Informe um valor de 0 a 100.",
+    dimension: "rh",
+    field: "turnover",
+    inputType: "quantitative",
   },
   {
     type: "question",
     content:
-      "Faltas e atrasos são frequentes? Como está a assiduidade dos colaboradores de forma geral?",
+      "Qual é a taxa de absenteísmo (faltas e atrasos) dos colaboradores? Informe um valor de 0 a 100.",
+    dimension: "rh",
+    field: "absenteismo",
+    inputType: "quantitative",
   },
 
   // ── FIN ─────────────────────────────────────────────────────────────────
@@ -237,22 +389,34 @@ const HUB_FLOW: Array<{ type: "header" | "question"; content: string }> = [
   {
     type: "question",
     content:
-      "Qual é a margem de lucro atual da empresa? Se possível, informe o percentual.",
+      "Qual é a margem de lucro atual da empresa? Informe um valor de 0 a 100.",
+    dimension: "fin",
+    field: "margem",
+    inputType: "quantitative",
   },
   {
     type: "question",
     content:
       "Como está o fluxo de caixa? A empresa tem reservas para cobrir suas operações e possíveis imprevistos?",
+    dimension: "fin",
+    field: "caixa",
+    inputType: "qualitative",
   },
   {
     type: "question",
     content:
       "Como tem sido o crescimento da receita? A empresa está em expansão ou em um momento de estabilidade?",
+    dimension: "fin",
+    field: "crescimento",
+    inputType: "qualitative",
   },
   {
     type: "question",
     content:
-      "Como está o endividamento da empresa? As dívidas estão sendo gerenciadas sem comprometer a operação?",
+      "Qual é o nível de endividamento da empresa? Informe um valor de 0 a 100.",
+    dimension: "fin",
+    field: "endividamento",
+    inputType: "quantitative",
   },
 
   // ── LOG ─────────────────────────────────────────────────────────────────
@@ -264,21 +428,33 @@ const HUB_FLOW: Array<{ type: "header" | "question"; content: string }> = [
     type: "question",
     content:
       "Como está a produtividade operacional? A equipe consegue entregar dentro do que é esperado?",
+    dimension: "log",
+    field: "produtividade",
+    inputType: "qualitative",
   },
   {
     type: "question",
     content:
       "A capacidade instalada está sendo bem aproveitada? Há muita ociosidade ou, ao contrário, sobrecarga frequente?",
+    dimension: "log",
+    field: "capacidade",
+    inputType: "qualitative",
   },
   {
     type: "question",
     content:
-      "Erros e necessidade de refazer tarefas são comuns nas operações? Isso tem impactado a eficiência?",
+      "Qual é a taxa de retrabalho nas operações? Informe um valor de 0 a 100.",
+    dimension: "log",
+    field: "retrabalho",
+    inputType: "quantitative",
   },
   {
     type: "question",
     content:
       "Como estão os prazos de entrega? Os clientes recebem seus pedidos ou serviços no tempo combinado?",
+    dimension: "log",
+    field: "tempoEntrega",
+    inputType: "qualitative",
   },
 
   // ── MKT ─────────────────────────────────────────────────────────────────
@@ -290,21 +466,33 @@ const HUB_FLOW: Array<{ type: "header" | "question"; content: string }> = [
     type: "question",
     content:
       "A geração de leads tem sido consistente? A empresa consegue atrair novos potenciais clientes regularmente?",
+    dimension: "mkt",
+    field: "leads",
+    inputType: "qualitative",
   },
   {
     type: "question",
     content:
-      "Como está a conversão de leads em clientes? Se tiver o percentual em mente, pode compartilhar.",
+      "Qual é a taxa de conversão de leads em clientes? Informe um valor de 0 a 100.",
+    dimension: "mkt",
+    field: "conversao",
+    inputType: "quantitative",
   },
   {
     type: "question",
     content:
       "Como está a retenção de clientes? Eles costumam voltar a comprar ou a empresa depende muito de conquistar novos clientes?",
+    dimension: "mkt",
+    field: "retencao",
+    inputType: "qualitative",
   },
   {
     type: "question",
     content:
-      "O custo de aquisição de clientes (CAC) está dentro do esperado para o seu mercado? Isso tem sido um ponto de atenção?",
+      "Qual é o custo de aquisição de clientes (CAC) normalizado? Informe um valor de 0 a 100.",
+    dimension: "mkt",
+    field: "cac",
+    inputType: "quantitative",
   },
 
   // ── ESG ─────────────────────────────────────────────────────────────────
@@ -316,16 +504,25 @@ const HUB_FLOW: Array<{ type: "header" | "question"; content: string }> = [
     type: "question",
     content:
       "A empresa tem iniciativas voltadas à sustentabilidade ou redução de impacto ambiental? Como isso é tratado internamente?",
+    dimension: "esg",
+    field: "ambiental",
+    inputType: "qualitative",
   },
   {
     type: "question",
     content:
       "Como a empresa se relaciona com colaboradores, comunidade e parceiros? Há programas ou práticas sociais relevantes?",
+    dimension: "esg",
+    field: "social",
+    inputType: "qualitative",
   },
   {
     type: "question",
     content:
       "Como está a governança da empresa? Existem processos, políticas e práticas de transparência e ética bem definidos?",
+    dimension: "esg",
+    field: "governanca",
+    inputType: "qualitative",
   },
 ];
 
@@ -356,16 +553,25 @@ function getNextHubMessages(fromIndex: number): {
   return { headers, question: null, nextQuestionIndex: -1 };
 }
 
-// ─── Save messages to conversation (fire-and-forget helper) ──────────────────
+// ─── Save messages (+ optional hubQuestionIndex) atomically ─────────────────
 
 async function saveToConversation(
   conversationId: string,
-  msgs: Array<{ role: "user" | "assistant"; content: string }>,
+  msgs: Array<{
+    role: "user" | "assistant";
+    content: string;
+    id?: string;
+  }>,
+  hubQuestionIndex?: number | null,
 ): Promise<void> {
   await fetch("/api/chat/message", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: msgs, conversationId }),
+    body: JSON.stringify({
+      messages: msgs,
+      conversationId,
+      ...(hubQuestionIndex !== undefined ? { hubQuestionIndex } : {}),
+    }),
   });
 }
 
@@ -420,7 +626,15 @@ export default function ChatPage() {
 
   const [onboardingStep, setOnboardingStep] =
     useState<OnboardingStep>("loading");
+
+  console.log({ onboardingStep });
   const [hubQuestionIndex, setHubQuestionIndex] = useState(0);
+  const [hubResponses, setHubResponses] = useState<
+    Record<string, Record<string, number>>
+  >({ rh: {}, fin: {}, log: {}, mkt: {}, esg: {} });
+  const [hubAnsweredQuestions, setHubAnsweredQuestions] = useState<
+    Record<number, { value: number; label?: string }>
+  >({});
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -462,30 +676,217 @@ export default function ChatPage() {
     [activeConversationId],
   );
 
+  // ── Helper: start hub flow from a given index, persisting all messages ────
+  const startHubFlow = useCallback(
+    (
+      convId: string,
+      fromIndex: number,
+      mode: "replace" | "append" = "replace",
+      shouldSave: boolean = true,
+    ) => {
+      const { headers, question, nextQuestionIndex } =
+        getNextHubMessages(fromIndex);
+      const botMessages = question ? [...headers, question] : headers;
+
+      // Persist ALL bot messages + hub flow position atomically (preserve hub IDs)
+      const allToSave = botMessages.map((m) => ({
+        role: "assistant" as const,
+        content: m.content,
+        id: m.id,
+      }));
+      if (allToSave.length) {
+        if (shouldSave) {
+          saveToConversation(convId, allToSave, nextQuestionIndex).catch(
+            console.error,
+          );
+        }
+      }
+
+      if (mode === "append") {
+        setMessages((prev) => prev.concat(botMessages));
+      } else {
+        setMessages(botMessages);
+      }
+      setHubQuestionIndex(nextQuestionIndex);
+      setOnboardingStep("hub");
+    },
+    [],
+  );
+
   // ── Helper: create new conversation + switch + start hub flow ────────────
   const handleNewConversation = useCallback(async () => {
     const convId = await createNewConversation();
     setActiveConversationId(convId);
 
-    // Start hub analysis flow in the new conversation
-    const { headers, question, nextQuestionIndex } = getNextHubMessages(0);
-    const botMessages = question ? [...headers, question] : headers;
-
-    if (headers.length) {
-      saveToConversation(
-        convId,
-        headers.map((h) => ({
-          role: "assistant" as const,
-          content: h.content,
-        })),
-      ).catch(console.error);
-    }
-
-    setMessages(botMessages);
-    setHubQuestionIndex(nextQuestionIndex);
-    setOnboardingStep("hub");
+    startHubFlow(convId, 0);
     setHistoryLoading(false);
-  }, [createNewConversation]);
+  }, [createNewConversation, startHubFlow]);
+
+  // ── Hub structured answer handler ─────────────────────────────────────────
+  const handleHubAnswer = useCallback(
+    async (value: number) => {
+      const currentItem = HUB_FLOW[hubQuestionIndex];
+      if (currentItem.type !== "question") return;
+
+      const convId = activeConversationIdRef.current;
+      if (!convId) return;
+
+      // Store the structured value
+      setHubResponses((prev) => ({
+        ...prev,
+        [currentItem.dimension]: {
+          ...prev[currentItem.dimension],
+          [currentItem.field]: value,
+        },
+      }));
+
+      // Mark as answered
+      const label =
+        currentItem.inputType === "qualitative"
+          ? (QUALITATIVE_OPTIONS.find((o) => o.value === value)?.label ??
+            String(value))
+          : undefined;
+      setHubAnsweredQuestions((prev) => ({
+        ...prev,
+        [hubQuestionIndex]: { value, label },
+      }));
+
+      // Show user response as a message
+      const displayText = label ?? String(value);
+      const userMsg: ChatMessage = {
+        id: `u-hub-${hubQuestionIndex}`,
+        role: "user",
+        content: displayText,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+
+      // Advance to next question
+      const { headers, question, nextQuestionIndex } = getNextHubMessages(
+        hubQuestionIndex + 1,
+      );
+
+      if (nextQuestionIndex === -1) {
+        // All questions answered — finalize
+        const finalResponses = {
+          ...hubResponses,
+          [currentItem.dimension]: {
+            ...hubResponses[currentItem.dimension],
+            [currentItem.field]: value,
+          },
+        };
+
+        const hubInput: HubInput = {
+          acoes: [],
+          rh: finalResponses.rh as unknown as RHInput,
+          fin: finalResponses.fin as unknown as FINInput,
+          log: finalResponses.log as unknown as LOGInput,
+          mkt: finalResponses.mkt as unknown as MKTInput,
+          esg: finalResponses.esg as unknown as ESGInput,
+        };
+
+        const thankYouContent =
+          "Obrigado por compartilhar essas informações! Com base nas suas respostas, realizarei a análise estratégica da sua empresa.";
+
+        // Persist user answer + closing headers + thank you + mark hub completed — single atomic write
+        const closingMsgs = [
+          {
+            role: "user" as const,
+            content: displayText,
+            id: `u-hub-${hubQuestionIndex}`,
+          },
+          ...headers.map((h) => ({
+            role: "assistant" as const,
+            content: h.content,
+            id: h.id,
+          })),
+          { role: "assistant" as const, content: thankYouContent },
+        ];
+        saveToConversation(convId, closingMsgs, null).catch(console.error);
+
+        await fetch("/api/user", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hubAnalysisDone: true }),
+        }).catch(console.error);
+
+        setMessages((prev) => [
+          ...prev,
+          ...headers,
+          botMsg(`hub-thanks-${Date.now()}`, thankYouContent),
+        ]);
+
+        hubAnalysisConvIdRef.current = convId;
+        setHubAnalysisStatus("loading");
+        setOnboardingStep("done");
+
+        // Call /api/hub/calculate directly with structured data
+        (async () => {
+          try {
+            const calcRes = await fetch("/api/hub/calculate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...hubInput, conversationId: convId }),
+            });
+            if (!calcRes.ok) throw new Error(`HTTP ${calcRes.status}`);
+            const calcData = await calcRes.json();
+            const output = calcData.output as DecisionOutput;
+
+            // Generate actions via agent
+            try {
+              const actionsRes = await fetch("/api/hub/actions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ output }),
+              });
+              if (actionsRes.ok) {
+                const actionsData = await actionsRes.json();
+                if (actionsData.actions?.length) {
+                  output.actions = actionsData.actions;
+                }
+              }
+            } catch {
+              // Actions generation failed — continue without actions
+            }
+
+            sessionStorage.setItem(
+              "hub_result",
+              JSON.stringify({ output, conversationId: convId }),
+            );
+            setHubAnalysisStatus("done");
+          } catch {
+            setHubAnalysisStatus("error");
+          }
+        })();
+      } else {
+        // Persist user answer + next headers + question — single atomic write
+        const nextMsgs = [
+          {
+            role: "user" as const,
+            content: displayText,
+            id: `u-hub-${hubQuestionIndex}`,
+          },
+          ...headers.map((h) => ({
+            role: "assistant" as const,
+            content: h.content,
+            id: h.id,
+          })),
+          {
+            role: "assistant" as const,
+            content: question!.content,
+            id: question!.id,
+          },
+        ];
+        saveToConversation(convId, nextMsgs, nextQuestionIndex).catch(
+          console.error,
+        );
+
+        setMessages((prev) => [...prev, ...headers, question!]);
+        setHubQuestionIndex(nextQuestionIndex);
+      }
+    },
+    [hubQuestionIndex, hubResponses],
+  );
 
   // ── 1. Profile check + conversation list ─────────────────────────────────
   useEffect(() => {
@@ -520,7 +921,7 @@ export default function ChatPage() {
 
         if (!missingCompany && !missingBusiness) {
           if (!hubDone) {
-            // Profile complete but hub not done → create conv + start hub flow
+            // Profile complete but hub not done → check for existing conversation with hub state
             let convId: string;
             if (convList.length > 0) {
               convId = convList[convList.length - 1].id;
@@ -533,21 +934,96 @@ export default function ChatPage() {
             }
             setActiveConversationId(convId);
 
-            const { headers, question, nextQuestionIndex } =
-              getNextHubMessages(0);
-            if (headers.length) {
-              saveToConversation(
-                convId,
-                headers.map((h) => ({
-                  role: "assistant" as const,
-                  content: h.content,
-                })),
-              ).catch(console.error);
+            // Check if there's an existing hub flow in progress
+            const convRes = await fetch(
+              `/api/chat?conversationId=${encodeURIComponent(convId)}`,
+            );
+            const convData = convRes.ok ? await convRes.json() : null;
+            const savedMessages = (convData?.messages ?? []) as ChatMessage[];
+            const savedHubQIndex = convData?.hubQuestionIndex as number | null;
+
+            if (
+              savedMessages.length > 0 &&
+              typeof savedHubQIndex === "number"
+            ) {
+              // Resume hub flow from saved state (IDs like hub-q-N are preserved from DB)
+              setMessages(savedMessages);
+              setHubQuestionIndex(savedHubQIndex);
+
+              // Rebuild hubAnsweredQuestions — dual matching (by ID or content fallback)
+              const answered: Record<
+                number,
+                { value: number; label?: string }
+              > = {};
+              const contentToIdx = new Map<string, number>();
+              for (let fi = 0; fi < HUB_FLOW.length; fi++) {
+                if (HUB_FLOW[fi].type === "question")
+                  contentToIdx.set(HUB_FLOW[fi].content, fi);
+              }
+              for (let mi = 0; mi < savedMessages.length; mi++) {
+                const msg = savedMessages[mi];
+                if (msg.role !== "assistant") continue;
+                // Try ID match first, then content fallback
+                let qi: number | null = null;
+                const qMatch = msg.id.match(/^hub-q-(\d+)$/);
+                if (qMatch) {
+                  qi = parseInt(qMatch[1], 10);
+                } else if (contentToIdx.has(msg.content)) {
+                  qi = contentToIdx.get(msg.content)!;
+                }
+                if (qi === null) continue;
+                const item = HUB_FLOW[qi];
+                if (!item || item.type !== "question") continue;
+                // Find the next user message after this question
+                const answerMsg = savedMessages
+                  .slice(mi + 1)
+                  .find((m) => m.role === "user");
+                if (answerMsg) {
+                  const numVal = Number(answerMsg.content);
+                  if (!isNaN(numVal)) {
+                    answered[qi] = { value: numVal };
+                  } else {
+                    const opt = QUALITATIVE_OPTIONS.find(
+                      (o) => o.label === answerMsg.content,
+                    );
+                    if (opt) {
+                      answered[qi] = {
+                        value: opt.value,
+                        label: opt.label,
+                      };
+                    }
+                  }
+                }
+              }
+              setHubAnsweredQuestions(answered);
+
+              // Rebuild hubResponses from answered questions
+              const responses: Record<string, Record<string, number>> = {
+                rh: {},
+                fin: {},
+                log: {},
+                mkt: {},
+                esg: {},
+              };
+              for (const [idxStr, ans] of Object.entries(answered)) {
+                const item = HUB_FLOW[Number(idxStr)];
+                if (item.type === "question") {
+                  responses[item.dimension][item.field] = ans.value;
+                }
+              }
+              setHubResponses(responses);
+
+              setHistoryLoading(false);
+              setOnboardingStep("hub");
+            } else if (savedMessages.length === 0) {
+              // Fresh start
+              startHubFlow(convId, 0);
+              setHistoryLoading(false);
+            } else {
+              // Has messages but no hub state — start fresh hub
+              startHubFlow(convId, 0, "append");
+              setHistoryLoading(false);
             }
-            setMessages(question ? [...headers, question] : headers);
-            setHubQuestionIndex(nextQuestionIndex);
-            setHistoryLoading(false);
-            setOnboardingStep("hub");
           } else {
             // All done → check for fromAnalysis or load most recent
             const fromAnalysis = searchParams.get("fromAnalysis") === "true";
@@ -576,8 +1052,30 @@ export default function ChatPage() {
               if (convList.length > 0) {
                 const lastConv = convList[convList.length - 1];
                 setActiveConversationId(lastConv.id);
+
+                if (lastConv.hubQuestionIndex === null) {
+                  setOnboardingStep("done");
+                } else {
+                  const messages = await fetch(
+                    `/api/chat?conversationId=${encodeURIComponent(lastConv.id)}`,
+                  );
+                  const messagesData = messages.ok
+                    ? await messages.json()
+                    : null;
+                  const messagesDataMessages = messagesData?.messages ?? [];
+                  setOnboardingStep("hub");
+                  startHubFlow(
+                    lastConv.id,
+                    lastConv.hubQuestionIndex,
+                    "append",
+                    false,
+                  );
+                  setMessages(messagesDataMessages);
+                  setHistoryLoading(false);
+                }
+              } else {
+                setOnboardingStep("done");
               }
-              setOnboardingStep("done");
             }
           }
           return;
@@ -799,21 +1297,7 @@ export default function ChatPage() {
       }
 
       if (needsHubRef.current) {
-        const { headers, question, nextQuestionIndex } = getNextHubMessages(0);
-        if (headers.length) {
-          saveToConversation(
-            convId,
-            headers.map((h) => ({
-              role: "assistant" as const,
-              content: h.content,
-            })),
-          ).catch(console.error);
-        }
-        setMessages((prev) =>
-          prev.concat(question ? [...headers, question] : headers),
-        );
-        setHubQuestionIndex(nextQuestionIndex);
-        setOnboardingStep("hub");
+        startHubFlow(convId, 0, "append");
         setLoading(false);
         return;
       }
@@ -840,21 +1324,7 @@ export default function ChatPage() {
       }).catch(console.error);
 
       if (needsHubRef.current) {
-        const { headers, question, nextQuestionIndex } = getNextHubMessages(0);
-        if (headers.length) {
-          saveToConversation(
-            convId,
-            headers.map((h) => ({
-              role: "assistant" as const,
-              content: h.content,
-            })),
-          ).catch(console.error);
-        }
-        setMessages((prev) =>
-          prev.concat(question ? [...headers, question] : headers),
-        );
-        setHubQuestionIndex(nextQuestionIndex);
-        setOnboardingStep("hub");
+        startHubFlow(convId, 0, "append");
         setLoading(false);
         return;
       }
@@ -871,80 +1341,8 @@ export default function ChatPage() {
       return;
     }
 
-    // ── Hub analysis Q&A ──────────────────────────────────────────────────
+    // ── Hub: block free text during structured flow ────────────────────────
     if (onboardingStep === "hub") {
-      setLoading(true);
-
-      const currentQ = HUB_FLOW[hubQuestionIndex];
-
-      // Save current question + user answer
-      await saveToConversation(convId, [
-        { role: "assistant", content: currentQ.content },
-        { role: "user", content },
-      ]).catch(console.error);
-
-      const { headers, question, nextQuestionIndex } = getNextHubMessages(
-        hubQuestionIndex + 1,
-      );
-
-      // Save transition headers (pillar intros)
-      if (headers.length) {
-        saveToConversation(
-          convId,
-          headers.map((h) => ({
-            role: "assistant" as const,
-            content: h.content,
-          })),
-        ).catch(console.error);
-      }
-
-      if (nextQuestionIndex === -1) {
-        // All questions answered
-        const thankYouContent =
-          "Obrigado por compartilhar essas informações! Com base nas suas respostas, realizarei a análise estratégica da sua empresa em breve.";
-
-        await saveToConversation(convId, [
-          { role: "assistant", content: thankYouContent },
-        ]).catch(console.error);
-
-        await fetch("/api/user", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ hubAnalysisDone: true }),
-        }).catch(console.error);
-
-        setMessages((prev) => [
-          ...prev,
-          ...headers,
-          botMsg(`hub-thanks-${Date.now()}`, thankYouContent),
-        ]);
-
-        // Dispara análise e aguarda o resultado
-        hubAnalysisConvIdRef.current = convId;
-        setHubAnalysisStatus("loading");
-        setOnboardingStep("done");
-
-        fetch("/api/hub/analyze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ conversationId: convId }),
-        })
-          .then(async (res) => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            sessionStorage.setItem(
-              "hub_result",
-              JSON.stringify({ output: data.output, conversationId: convId }),
-            );
-            setHubAnalysisStatus("done");
-          })
-          .catch(() => setHubAnalysisStatus("error"));
-      } else {
-        setMessages((prev) => [...prev, ...headers, question!]);
-        setHubQuestionIndex(nextQuestionIndex);
-      }
-
-      setLoading(false);
       return;
     }
 
@@ -1025,7 +1423,7 @@ export default function ChatPage() {
       setStreamingMessage(null);
       setLoading(false);
     }
-  }, [input, loading, onboardingStep, hubQuestionIndex]);
+  }, [input, loading, onboardingStep]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -1371,19 +1769,64 @@ export default function ChatPage() {
                   </div>
                 </div>
               ) : (
-                allMessages.map((msg, i) => (
-                  <MessageBubble
-                    key={msg.id}
-                    message={msg}
-                    isStreaming={
-                      streamingMessage !== null &&
-                      i === allMessages.length - 1 &&
-                      msg.role === "assistant"
-                    }
-                    userImage={session?.user?.image}
-                    userName={session?.user?.name}
-                  />
-                ))
+                allMessages.map((msg, i) => {
+                  const hubQMatch = msg.id.match(/^hub-q-(\d+)$/);
+                  const hubQIndex = hubQMatch
+                    ? parseInt(hubQMatch[1], 10)
+                    : null;
+                  const hubItem =
+                    hubQIndex !== null ? HUB_FLOW[hubQIndex] : null;
+                  const isHubQuestion =
+                    hubItem !== null && hubItem.type === "question";
+                  const answered =
+                    hubQIndex !== null
+                      ? hubAnsweredQuestions[hubQIndex]
+                      : undefined;
+                  const isCurrentHubQ =
+                    isHubQuestion &&
+                    onboardingStep === "hub" &&
+                    hubQIndex === hubQuestionIndex &&
+                    !answered;
+
+                  return (
+                    <div key={msg.id}>
+                      <MessageBubble
+                        message={msg}
+                        isStreaming={
+                          streamingMessage !== null &&
+                          i === allMessages.length - 1 &&
+                          msg.role === "assistant"
+                        }
+                        userImage={session?.user?.image}
+                        userName={session?.user?.name}
+                      />
+                      {isHubQuestion &&
+                        hubItem.type === "question" &&
+                        hubItem.inputType === "qualitative" &&
+                        (isCurrentHubQ || answered) && (
+                          <div className="mt-2">
+                            <QualitativeResponse
+                              onSelect={handleHubAnswer}
+                              disabled={!!answered}
+                              selectedValue={answered ? answered.value : null}
+                            />
+                          </div>
+                        )}
+                      {isHubQuestion &&
+                        hubItem.type === "question" &&
+                        hubItem.inputType === "quantitative" &&
+                        (isCurrentHubQ || answered) && (
+                          <div className="mt-2">
+                            <QuantitativeResponse
+                              onSubmit={handleHubAnswer}
+                              disabled={!!answered}
+                              submittedValue={answered ? answered.value : null}
+                            />
+                          </div>
+                        )}
+                    </div>
+                  );
+                })
               )}
               {hubAnalysisStatus !== "idle" && (
                 <div className="flex items-start gap-2">
@@ -1448,82 +1891,91 @@ export default function ChatPage() {
               borderColor: "var(--steel-soft)",
             }}
           >
-            <div className="max-w-2xl mx-auto flex items-end gap-3">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={
-                  isOnboarding
-                    ? "Digite sua resposta..."
-                    : "Digite sua mensagem... (Enter para enviar, Shift+Enter para nova linha)"
-                }
-                rows={1}
-                disabled={loading || onboardingStep === "loading"}
-                className="flex-1 resize-none px-3 py-2.5 text-sm rounded-[var(--radius-sm)] border outline-none transition-colors duration-150 disabled:opacity-50"
-                style={{
-                  background: "var(--control-bg)",
-                  borderColor: "var(--control-border)",
-                  color: "var(--ink-primary)",
-                  lineHeight: "1.5",
-                  maxHeight: 160,
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor =
-                    "var(--control-border-focus)";
-                  e.currentTarget.style.borderLeftWidth = "2px";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "var(--control-border)";
-                  e.currentTarget.style.borderLeftWidth = "1px";
-                }}
-              />
-              <button
-                onClick={sendMessage}
-                disabled={
-                  !input.trim() || loading || onboardingStep === "loading"
-                }
-                className="shrink-0 w-10 h-10 flex items-center justify-center rounded-[var(--radius-sm)] transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{
-                  background: loading ? "var(--azure-hover)" : "var(--navy)",
-                  color: "var(--ink-inverse)",
-                  cursor: "pointer",
-                }}
-                onMouseEnter={(e) => {
-                  if (!loading && input.trim())
-                    e.currentTarget.style.background = "var(--azure)";
-                }}
-                onMouseLeave={(e) => {
-                  if (!loading)
-                    e.currentTarget.style.background = "var(--navy)";
-                }}
-              >
-                {loading ? (
-                  <svg
-                    className="animate-spin w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    />
-                  </svg>
-                ) : (
-                  <SendIcon />
-                )}
-              </button>
-            </div>
+            {onboardingStep === "hub" ? (
+              <div className="max-w-2xl mx-auto text-center py-2">
+                <Text variant="body-sm" color="muted">
+                  Para garantir a precisão da análise, responda utilizando as
+                  opções disponíveis ou informe um valor numérico válido.
+                </Text>
+              </div>
+            ) : (
+              <div className="max-w-2xl mx-auto flex items-end gap-3">
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={
+                    isOnboarding
+                      ? "Digite sua resposta..."
+                      : "Digite sua mensagem... (Enter para enviar, Shift+Enter para nova linha)"
+                  }
+                  rows={1}
+                  disabled={loading || onboardingStep === "loading"}
+                  className="flex-1 resize-none px-3 py-2.5 text-sm rounded-[var(--radius-sm)] border outline-none transition-colors duration-150 disabled:opacity-50"
+                  style={{
+                    background: "var(--control-bg)",
+                    borderColor: "var(--control-border)",
+                    color: "var(--ink-primary)",
+                    lineHeight: "1.5",
+                    maxHeight: 160,
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor =
+                      "var(--control-border-focus)";
+                    e.currentTarget.style.borderLeftWidth = "2px";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = "var(--control-border)";
+                    e.currentTarget.style.borderLeftWidth = "1px";
+                  }}
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={
+                    !input.trim() || loading || onboardingStep === "loading"
+                  }
+                  className="shrink-0 w-10 h-10 flex items-center justify-center rounded-[var(--radius-sm)] transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{
+                    background: loading ? "var(--azure-hover)" : "var(--navy)",
+                    color: "var(--ink-inverse)",
+                    cursor: "pointer",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!loading && input.trim())
+                      e.currentTarget.style.background = "var(--azure)";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!loading)
+                      e.currentTarget.style.background = "var(--navy)";
+                  }}
+                >
+                  {loading ? (
+                    <svg
+                      className="animate-spin w-4 h-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
+                  ) : (
+                    <SendIcon />
+                  )}
+                </button>
+              </div>
+            )}
             <div className="max-w-2xl mx-auto mt-2">
               <Text variant="caption" color="muted" className="text-center">
                 Assistente de gestão corporativa · Velta Platform

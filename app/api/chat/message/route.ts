@@ -14,9 +14,10 @@ export async function POST(req: Request): Promise<Response> {
     return new Response("Invalid JSON", { status: 400 });
   }
 
-  const { messages, conversationId } = body as {
-    messages?: Array<{ role: unknown; content: unknown }>;
+  const { messages, conversationId, hubQuestionIndex } = body as {
+    messages?: Array<{ role: unknown; content: unknown; id?: unknown }>;
     conversationId?: string;
+    hubQuestionIndex?: number | null;
   };
 
   if (!conversationId) {
@@ -32,7 +33,11 @@ export async function POST(req: Request): Promise<Response> {
       (m.role === "user" || m.role === "assistant") &&
       typeof m.content === "string" &&
       (m.content as string).trim(),
-  ) as Array<{ role: "user" | "assistant"; content: string }>;
+  ) as Array<{
+    role: "user" | "assistant";
+    content: string;
+    id?: unknown;
+  }>;
 
   if (!valid.length) return new Response("No valid messages", { status: 400 });
 
@@ -40,7 +45,13 @@ export async function POST(req: Request): Promise<Response> {
   await appendMessages(
     conversationId,
     session.user.id,
-    valid.map((m) => ({ role: m.role, content: m.content, timestamp: now })),
+    valid.map((m) => ({
+      role: m.role,
+      content: m.content,
+      timestamp: now,
+      ...(typeof m.id === "string" ? { id: m.id } : {}),
+    })),
+    hubQuestionIndex !== undefined ? hubQuestionIndex : undefined,
   );
 
   return new Response(null, { status: 204 });

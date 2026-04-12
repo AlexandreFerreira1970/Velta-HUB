@@ -14,6 +14,7 @@ export interface ConversationDoc {
   title: string;
   lastResponseId: string | null;
   initialAnalysisMessageSentAt?: string; // ISO timestamp — set after AI generates initial analysis message
+  hubQuestionIndex: number | null; // tracks current hub flow position; null = not in hub flow
   messages: ChatMessage[];
   createdAt: string;
   updatedAt: string;
@@ -22,6 +23,7 @@ export interface ConversationDoc {
 export interface ConversationSummary {
   id: string;
   title: string;
+  hubQuestionIndex: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -50,6 +52,7 @@ export async function createConversation(
     userId,
     title,
     lastResponseId: null,
+    hubQuestionIndex: null,
     messages: [],
     createdAt: now,
     updatedAt: now,
@@ -70,14 +73,12 @@ export async function listConversations(
     .query<ConversationSummary>(
       {
         query:
-          "SELECT c.id, c.title, c.createdAt, c.updatedAt FROM c WHERE c.userId = @userId ORDER BY c.createdAt ASC",
+          "SELECT c.id, c.title, c.createdAt, c.updatedAt, c.hubQuestionIndex FROM c WHERE c.userId = @userId ORDER BY c.createdAt ASC",
         parameters: [{ name: "@userId", value: userId }],
       },
       { partitionKey: userId },
     )
     .fetchAll();
-
-  console.log("resources", resources);
 
   return resources;
 }
@@ -105,9 +106,10 @@ export async function getConversation(
 export async function appendMessages(
   conversationId: string,
   userId: string,
-  msgs: Omit<ChatMessage, "id">[],
+  msgs: (Omit<ChatMessage, "id"> & { id?: string })[],
+  hubQuestionIndex?: number | null,
 ): Promise<void> {
-  if (!msgs.length) return;
+  if (!msgs.length && hubQuestionIndex === undefined) return;
   const container = await conversationsContainer();
   const now = new Date().toISOString();
 
@@ -123,7 +125,7 @@ export async function appendMessages(
 
   const newMessages: ChatMessage[] = msgs.map((m) => ({
     ...m,
-    id: makeMessageId(),
+    id: m.id || makeMessageId(),
   }));
 
   const doc: ConversationDoc = existing ?? {
@@ -131,6 +133,7 @@ export async function appendMessages(
     userId,
     title: "",
     lastResponseId: null,
+    hubQuestionIndex: null,
     messages: [],
     createdAt: now,
     updatedAt: now,
@@ -139,6 +142,7 @@ export async function appendMessages(
   await container.items.upsert({
     ...doc,
     messages: [...doc.messages, ...newMessages],
+    ...(hubQuestionIndex !== undefined ? { hubQuestionIndex } : {}),
     updatedAt: now,
   });
 }
@@ -176,6 +180,7 @@ export async function saveLastResponseId(
     userId,
     title: "",
     lastResponseId: null,
+    hubQuestionIndex: null,
     messages: [],
     createdAt: now,
     updatedAt: now,
@@ -184,6 +189,35 @@ export async function saveLastResponseId(
   await container.items.upsert({
     ...doc,
     lastResponseId: responseId,
+    updatedAt: now,
+  });
+}
+
+// ─── update hub flow state ──────────────────────────────────────────────────
+
+export async function updateHubQuestionIndex(
+  conversationId: string,
+  userId: string,
+  hubQuestionIndex: number | null,
+): Promise<void> {
+  const container = await conversationsContainer();
+  const now = new Date().toISOString();
+
+  let existing: ConversationDoc | null = null;
+  try {
+    const { resource } = await container
+      .item(conversationId, userId)
+      .read<ConversationDoc>();
+    existing = resource ?? null;
+  } catch {
+    // not found
+  }
+
+  if (!existing) return;
+
+  await container.items.upsert({
+    ...existing,
+    hubQuestionIndex,
     updatedAt: now,
   });
 }
