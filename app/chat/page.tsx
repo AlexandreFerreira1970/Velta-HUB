@@ -1699,7 +1699,7 @@ export default function ChatPage() {
             }}
           >
             {onboardingStep === "hub" ? (
-              <div className="max-w-2xl mx-auto text-center py-2">
+              <div className="text-center">
                 <Text variant="body-sm" color="muted">
                   Para garantir a precisão da análise, responda utilizando as
                   opções disponíveis ou informe um valor numérico válido.
@@ -1783,11 +1783,6 @@ export default function ChatPage() {
                 </button>
               </div>
             )}
-            <div className="max-w-2xl mx-auto mt-2">
-              <Text variant="caption" color="muted" className="text-center">
-                Assistente de gestão corporativa · Velta Platform
-              </Text>
-            </div>
           </footer>
         </div>
       </div>
