@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Text, Button, Input } from "@/components/ui";
 import type { ChatMessage, ConversationSummary } from "@/lib/conversations";
 import type {
@@ -15,6 +15,7 @@ import type {
   ESGInput,
 } from "@/lib/types";
 import Markdown from "react-markdown";
+import Image from "next/image";
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 
@@ -54,20 +55,15 @@ const LogoutIcon = () => (
 
 function AgentAvatar() {
   return (
-    <div
-      className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
-      style={{ background: "var(--navy)" }}
-    >
-      <span
-        style={{
-          color: "var(--ink-inverse)",
-          fontSize: 13,
-          fontWeight: 700,
-          fontFamily: "var(--font-geist-sans)",
-        }}
-      >
-        V
-      </span>
+    <div className="shrink-0 w-16 h-16 rounded-full flex items-center justify-center">
+      <Image
+        src="/veltinha-icon.webp"
+        alt="Velta"
+        width={65}
+        height={65}
+        unoptimized
+        className="w-14 h-14 rounded-full object-cover"
+      />
     </div>
   );
 }
@@ -118,7 +114,7 @@ function MessageBubble({
 
   return (
     <div
-      className={`flex items-end gap-2 ${isUser ? "justify-end" : "justify-start"}`}
+      className={`flex items-end gap-4 ${isUser ? "justify-end" : "justify-start"}`}
     >
       {!isUser && <AgentAvatar />}
       <div className="max-w-[72%] space-y-1">
@@ -204,7 +200,7 @@ function QualitativeResponse({
   selectedValue: number | null;
 }) {
   return (
-    <div className="flex items-start gap-2 ml-10">
+    <div className="flex items-start gap-2 ml-20">
       <div className="flex flex-wrap gap-2">
         {QUALITATIVE_OPTIONS.map((opt) => (
           <Button
@@ -591,12 +587,6 @@ export default function ChatPage() {
     null,
   );
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
-  useEffect(() => {
-    if (bottomRef.current && !hasScrolledToBottom && messages.length > 0) {
-      setHasScrolledToBottom(true);
-      bottomRef.current.scrollIntoView();
-    }
-  }, [messages, hasScrolledToBottom]);
 
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -605,7 +595,9 @@ export default function ChatPage() {
   const [hubAnalysisStatus, setHubAnalysisStatus] = useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
+  const [hubMinDelayPassed, setHubMinDelayPassed] = useState(false);
   const hubAnalysisConvIdRef = useRef<string | null>(null);
+  const router = useRouter();
 
   // Conversation list
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -619,10 +611,67 @@ export default function ChatPage() {
     activeConversationIdRef.current = activeConversationId;
   }, [activeConversationId]);
 
+  // Hub analysis overlay — start 10s minimum delay timer when loading begins.
+  // IMPORTANT: timer must survive the loading→done transition, otherwise the
+  // overlay stays stuck when analysis finishes faster than 10s.
+  const hubDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (hubAnalysisStatus === "loading") {
+      if (hubDelayTimerRef.current) clearTimeout(hubDelayTimerRef.current);
+      setHubMinDelayPassed(false);
+      hubDelayTimerRef.current = setTimeout(() => {
+        setHubMinDelayPassed(true);
+        hubDelayTimerRef.current = null;
+      }, 10000);
+    } else if (hubAnalysisStatus === "idle") {
+      if (hubDelayTimerRef.current) {
+        clearTimeout(hubDelayTimerRef.current);
+        hubDelayTimerRef.current = null;
+      }
+      setHubMinDelayPassed(false);
+    }
+    // "done" / "error": do nothing — let the existing timer keep running.
+  }, [hubAnalysisStatus]);
+
+  // Clear timer on unmount only
+  useEffect(() => {
+    return () => {
+      if (hubDelayTimerRef.current) clearTimeout(hubDelayTimerRef.current);
+    };
+  }, []);
+
+  // Hub analysis overlay — navigate on any key/click once analysis is ready
+  useEffect(() => {
+    if (hubAnalysisStatus !== "done" || !hubMinDelayPassed) return;
+    const handler = () => router.push("/hub/result");
+    window.addEventListener("keydown", handler);
+    window.addEventListener("click", handler);
+    return () => {
+      window.removeEventListener("keydown", handler);
+      window.removeEventListener("click", handler);
+    };
+  }, [hubAnalysisStatus, hubMinDelayPassed, router]);
+
   const [onboardingStep, setOnboardingStep] =
     useState<OnboardingStep>("loading");
 
-  console.log({ onboardingStep });
+  const isAsking =
+    onboardingStep === "hub" ||
+    onboardingStep === "ask_business" ||
+    onboardingStep === "ask_company";
+
+  useEffect(() => {
+    if (isAsking && hasScrolledToBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+
+    if (bottomRef.current && !hasScrolledToBottom && messages.length > 0) {
+      setHasScrolledToBottom(true);
+      bottomRef.current.scrollIntoView();
+    }
+  }, [messages, hasScrolledToBottom, isAsking]);
+
   const [hubQuestionIndex, setHubQuestionIndex] = useState(0);
   const [hubResponses, setHubResponses] = useState<
     Record<string, Record<string, number>>
@@ -655,6 +704,7 @@ export default function ChatPage() {
       setActiveConversationId(convId);
       setMessages([]);
       setHistoryLoading(true);
+      setHasScrolledToBottom(false);
 
       try {
         const res = await fetch(
@@ -1264,9 +1314,11 @@ export default function ChatPage() {
     };
     setMessages((prev) => [...prev, userMsg]);
 
-    setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 100);
+    if (!isAsking) {
+      setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 250);
+    }
 
     // ── Onboarding: company name ──────────────────────────────────────────
     if (onboardingStep === "ask_company") {
@@ -1430,7 +1482,7 @@ export default function ChatPage() {
       setStreamingMessage(null);
       setLoading(false);
     }
-  }, [input, loading, onboardingStep]);
+  }, [input, loading, onboardingStep, isAsking]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -1739,7 +1791,7 @@ export default function ChatPage() {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Messages */}
           <main className="flex-1 overflow-y-auto px-4 py-6">
-            <div className="max-w-2xl mx-auto space-y-4">
+            <div className="max-w-4xl mx-auto space-y-4">
               {onboardingStep === "loading" || historyLoading ? (
                 <div className="flex justify-center py-12">
                   <Text variant="caption" color="tertiary">
@@ -1811,7 +1863,7 @@ export default function ChatPage() {
                         hubItem.type === "question" &&
                         hubItem.inputType === "qualitative" &&
                         (isCurrentHubQ || answered) && (
-                          <div className="mt-2">
+                          <div className="mt-4">
                             <QualitativeResponse
                               onSelect={handleHubAnswer}
                               disabled={!!answered}
@@ -1835,7 +1887,7 @@ export default function ChatPage() {
                   );
                 })
               )}
-              {hubAnalysisStatus !== "idle" && (
+              {hubAnalysisStatus === "error" && (
                 <div className="flex items-start gap-2">
                   <AgentAvatar />
                   <div
@@ -1847,42 +1899,10 @@ export default function ChatPage() {
                       borderRadius: "2px 12px 12px 12px",
                     }}
                   >
-                    {hubAnalysisStatus === "loading" && (
-                      <span className="inline-flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1">
-                          {[0, 1, 2].map((i) => (
-                            <span
-                              key={i}
-                              className="inline-block w-1.5 h-1.5 rounded-full animate-bounce"
-                              style={{
-                                background: "var(--steel)",
-                                animationDelay: `${i * 150}ms`,
-                                animationDuration: "900ms",
-                              }}
-                            />
-                          ))}
-                        </span>
-                        Estou gerando sua análise...
-                      </span>
-                    )}
-                    {hubAnalysisStatus === "done" && (
-                      <span>
-                        Análise concluída!{" "}
-                        <a
-                          href="/hub/result"
-                          className="underline font-medium"
-                          style={{ color: "var(--azure)" }}
-                        >
-                          Clique aqui para visualizar →
-                        </a>
-                      </span>
-                    )}
-                    {hubAnalysisStatus === "error" && (
-                      <span style={{ color: "var(--error, #e53e3e)" }}>
-                        Não foi possível gerar a análise. Tente novamente mais
-                        tarde.
-                      </span>
-                    )}
+                    <span style={{ color: "var(--error, #e53e3e)" }}>
+                      Não foi possível gerar a análise. Tente novamente mais
+                      tarde.
+                    </span>
                   </div>
                 </div>
               )}
@@ -1991,6 +2011,180 @@ export default function ChatPage() {
           </footer>
         </div>
       </div>
+
+      {/* ── Full-screen Hub analysis overlay ─────────────────────────────── */}
+      {(hubAnalysisStatus === "loading" || hubAnalysisStatus === "done") && (
+        <div
+          className="hub-overlay fixed inset-0 z-50 flex items-center justify-center px-6"
+          style={{
+            background:
+              "radial-gradient(circle at 50% 40%, rgba(29, 78, 216, 0.18), rgba(12, 26, 46, 0.92) 70%)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+          }}
+          aria-live="polite"
+          aria-busy={hubAnalysisStatus === "loading"}
+        >
+          <div className="hub-overlay-content flex flex-col items-center text-center max-w-xl">
+            {/* Animated orb */}
+            <div className="relative w-32 h-32 mb-8 flex items-center justify-center">
+              <div
+                className="hub-pulse-ring absolute inset-0 rounded-full"
+                style={{
+                  background:
+                    "radial-gradient(circle, rgba(59, 130, 246, 0.5), rgba(29, 78, 216, 0) 70%)",
+                }}
+              />
+              <div
+                className="hub-orbit absolute inset-2 rounded-full"
+                style={{
+                  border: "1px solid rgba(147, 197, 253, 0.35)",
+                  borderTopColor: "rgba(219, 234, 254, 0.95)",
+                  borderRightColor: "rgba(147, 197, 253, 0.75)",
+                }}
+              />
+              <div
+                className="hub-float relative w-16 h-16 rounded-full flex items-center justify-center"
+                style={{
+                  background:
+                    "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)",
+                  boxShadow:
+                    "0 0 40px rgba(59, 130, 246, 0.55), 0 0 80px rgba(29, 78, 216, 0.35)",
+                }}
+              >
+                <span
+                  style={{
+                    color: "#f8fafc",
+                    fontSize: 22,
+                    fontWeight: 700,
+                    letterSpacing: "-0.02em",
+                    fontFamily: "var(--font-geist-sans)",
+                  }}
+                >
+                  V
+                </span>
+              </div>
+            </div>
+
+            {hubAnalysisStatus === "loading" || !hubMinDelayPassed ? (
+              <>
+                <h2
+                  className="hub-shimmer-text"
+                  style={{
+                    color: "#f8fafc",
+                    fontSize: 30,
+                    fontWeight: 700,
+                    lineHeight: 1.2,
+                    letterSpacing: "-0.02em",
+                    marginBottom: 12,
+                    background:
+                      "linear-gradient(90deg, #dbeafe, #ffffff, #93c5fd, #ffffff, #dbeafe)",
+                    backgroundSize: "200% 100%",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                    animation:
+                      "hub-shimmer 2200ms ease-in-out infinite, hub-overlay-content-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both",
+                  }}
+                >
+                  Tecendo sua análise estratégica
+                </h2>
+                <p
+                  style={{
+                    color: "rgba(226, 232, 240, 0.85)",
+                    fontSize: 15,
+                    lineHeight: 1.6,
+                    maxWidth: 480,
+                    marginBottom: 24,
+                  }}
+                >
+                  Estamos cruzando dados, ponderando dimensões e desenhando
+                  recomendações sob medida para o seu negócio. Isso levará
+                  apenas alguns instantes.
+                </p>
+                <div
+                  className="flex items-center gap-2"
+                  style={{ color: "rgba(191, 219, 254, 0.9)" }}
+                >
+                  {[0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      className="inline-block w-2 h-2 rounded-full animate-bounce"
+                      style={{
+                        background: "rgba(147, 197, 253, 0.9)",
+                        animationDelay: `${i * 180}ms`,
+                        animationDuration: "1100ms",
+                      }}
+                    />
+                  ))}
+                  <span
+                    style={{
+                      marginLeft: 8,
+                      fontSize: 12,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      color: "rgba(191, 219, 254, 0.75)",
+                    }}
+                  >
+                    {hubAnalysisStatus === "done"
+                      ? "Finalizando"
+                      : "Processando"}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2
+                  style={{
+                    color: "#f8fafc",
+                    fontSize: 30,
+                    fontWeight: 700,
+                    lineHeight: 1.2,
+                    letterSpacing: "-0.02em",
+                    marginBottom: 12,
+                    animation:
+                      "hub-overlay-content-in 480ms cubic-bezier(0.22, 1, 0.36, 1) both",
+                  }}
+                >
+                  Sua análise está pronta
+                </h2>
+                <p
+                  style={{
+                    color: "rgba(226, 232, 240, 0.85)",
+                    fontSize: 15,
+                    lineHeight: 1.6,
+                    maxWidth: 480,
+                    marginBottom: 28,
+                  }}
+                >
+                  Preparamos um panorama completo das cinco dimensões do seu
+                  negócio, com recomendações priorizadas.
+                </p>
+                <div
+                  className="hub-ready-pulse inline-flex items-center gap-3 px-5 py-3 rounded-full"
+                  style={{
+                    background: "rgba(255, 255, 255, 0.08)",
+                    border: "1px solid rgba(147, 197, 253, 0.45)",
+                    color: "#f8fafc",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  <span
+                    className="inline-block w-2 h-2 rounded-full"
+                    style={{
+                      background: "#4ade80",
+                      boxShadow: "0 0 12px rgba(74, 222, 128, 0.9)",
+                    }}
+                  />
+                  Pressione qualquer tecla para continuar
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

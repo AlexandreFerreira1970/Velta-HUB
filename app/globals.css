@@ -173,3 +173,111 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* ─── Hub analysis overlay animations ───────────────────────────────────── */
+
+@keyframes hub-overlay-fade-in {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(12px);
+  }
+}
+
+@keyframes hub-overlay-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes hub-pulse-ring {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+}
+
+@keyframes hub-orbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes hub-shimmer {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes hub-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes hub-ready-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+
+.hub-overlay {
+  animation: hub-overlay-fade-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hub-overlay-content {
+  animation: hub-overlay-content-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hub-pulse-ring {
+  animation: hub-pulse-ring 2600ms ease-in-out infinite;
+}
+
+.hub-orbit {
+  animation: hub-orbit 3200ms linear infinite;
+}
+
+.hub-shimmer-text {
+  animation: hub-shimmer 2200ms ease-in-out infinite;
+}
+
+.hub-float {
+  animation: hub-float 3000ms ease-in-out infinite;
+}
+
+.hub-ready-pulse {
+  animation: hub-ready-pulse 1800ms ease-in-out infinite;
+}
