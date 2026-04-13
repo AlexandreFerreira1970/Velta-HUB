@@ -100,7 +100,7 @@ function MessageBubble({
       className={`flex items-end gap-4 ${isUser ? "justify-end" : "justify-start"}`}
     >
       {!isUser && <AgentAvatar />}
-      <div className="max-w-[72%] space-y-1">
+      <div className="max-w-full md:max-w-[72%] space-y-1">
         <div
           className="px-4 py-3 text-sm leading-relaxed pre-wrap flex flex-col gap-4"
           style={
