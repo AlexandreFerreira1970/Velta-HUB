@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Text, Button, Input } from "@/components/ui";
+import { Text, Button, Input, Drawer } from "@/components/ui";
+import { VELTA_CHAT_SIDEBAR_EVENT } from "@/components/Header";
+import { ConversationsSidebar } from "./_components/ConversationsSidebar";
 import type { ChatMessage, ConversationSummary } from "@/lib/conversations";
 import type {
   DecisionOutput,
@@ -29,25 +31,6 @@ const SendIcon = () => (
     aria-hidden="true"
   >
     <path d="M14 8L2 2l2.5 6L2 14l12-6Z" fill="currentColor" />
-  </svg>
-);
-
-const LogoutIcon = () => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 14 14"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    aria-hidden="true"
-  >
-    <path
-      d="M5 2H2.5A1.5 1.5 0 0 0 1 3.5v7A1.5 1.5 0 0 0 2.5 12H5M9 4l3 3-3 3M12 7H5"
-      stroke="currentColor"
-      strokeWidth="1.25"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
   </svg>
 );
 
@@ -598,6 +581,14 @@ export default function ChatPage() {
   const [hubMinDelayPassed, setHubMinDelayPassed] = useState(false);
   const hubAnalysisConvIdRef = useRef<string | null>(null);
   const router = useRouter();
+
+  // Mobile sidebar drawer — toggled by hamburger in shared Header
+  const [chatSidebarOpen, setChatSidebarOpen] = useState(false);
+  useEffect(() => {
+    const handler = () => setChatSidebarOpen((v) => !v);
+    window.addEventListener(VELTA_CHAT_SIDEBAR_EVENT, handler);
+    return () => window.removeEventListener(VELTA_CHAT_SIDEBAR_EVENT, handler);
+  }, []);
 
   // Conversation list
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -1534,258 +1525,47 @@ export default function ChatPage() {
 
   return (
     <div
-      className="flex flex-col h-screen"
+      className="flex flex-col flex-1 min-h-0"
       style={{ background: "var(--canvas)" }}
     >
-      {/* Top nav */}
-      <header
-        className="flex items-center justify-between px-6 h-14 shrink-0 border-b"
-        style={{
-          background: "var(--surface-0)",
-          borderColor: "var(--steel-soft)",
-        }}
-      >
-        <div className="flex items-center gap-2.5">
-          <div
-            className="w-6 h-6 rounded-[var(--radius-sm)] flex items-center justify-center"
-            style={{ background: "var(--navy)" }}
-          >
-            <span
-              style={{
-                color: "var(--ink-inverse)",
-                fontSize: 10,
-                fontWeight: 700,
-                fontFamily: "var(--font-geist-sans)",
-              }}
-            >
-              V
-            </span>
-          </div>
-          <Text variant="subheading" as="span" style={{ color: "var(--navy)" }}>
-            Velta
-          </Text>
-          <span
-            style={{ color: "var(--steel)", fontSize: 16, userSelect: "none" }}
-          >
-            |
-          </span>
-          <Text variant="body-sm" color="secondary">
-            Assistente
-          </Text>
-          <span
-            style={{ color: "var(--steel)", fontSize: 16, userSelect: "none" }}
-          >
-            |
-          </span>
-          <a href="/hub/history" style={{ textDecoration: "none" }}>
-            <Text variant="body-sm" color="tertiary">
-              Histórico
-            </Text>
-          </a>
-          <span
-            style={{ color: "var(--steel)", fontSize: 16, userSelect: "none" }}
-          >
-            |
-          </span>
-          <a href="/hub" style={{ textDecoration: "none" }}>
-            <Text variant="body-sm" color="tertiary">
-              Hub
-            </Text>
-          </a>
-          {process.env.NODE_ENV === "development" && (
-            <>
-              <span
-                style={{
-                  color: "var(--steel)",
-                  fontSize: 16,
-                  userSelect: "none",
-                }}
-              >
-                |
-              </span>
-              <button
-                onClick={triggerAnalysis}
-                disabled={analyzing}
-                className="flex items-center gap-1.5 px-3 h-7 rounded-[var(--radius-sm)] border transition-colors duration-150 disabled:opacity-50"
-                style={{
-                  borderColor: "var(--azure)",
-                  color: "var(--azure)",
-                  background: "transparent",
-                  fontSize: 12,
-                  cursor: analyzing ? "not-allowed" : "pointer",
-                }}
-                onMouseEnter={(e) => {
-                  if (!analyzing)
-                    e.currentTarget.style.background = "var(--surface-2)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
-                }}
-              >
-                {analyzing ? (
-                  <svg
-                    className="animate-spin w-3 h-3"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M8 1v14M1 8h14"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                )}
-                {analyzing ? "Analisando..." : "Gerar Análise"}
-              </button>
-            </>
-          )}
-        </div>
-
-        <div className="flex items-center gap-4">
-          {session?.user?.name && (
-            <Text variant="body-sm" color="secondary">
-              {session.user.name}
-            </Text>
-          )}
-          <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
-            className="flex items-center gap-1.5 px-3 h-7 rounded-[var(--radius-sm)] border transition-colors duration-150"
-            style={{
-              borderColor: "var(--steel)",
-              color: "var(--ink-secondary)",
-              background: "transparent",
-              fontSize: 12,
-              cursor: "pointer",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "var(--surface-2)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-            }}
-          >
-            <LogoutIcon />
-            Sair
-          </button>
-        </div>
-      </header>
-
       {/* Body: sidebar + chat */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
+        {/* Sidebar — desktop only */}
         <aside
-          className="shrink-0 w-60 border-r flex flex-col overflow-hidden"
+          className="hidden md:flex shrink-0 w-60 border-r flex-col overflow-hidden"
           style={{
             background: "var(--surface-0)",
             borderColor: "var(--steel-soft)",
           }}
         >
-          {/* New conversation button */}
-          <div
-            className="p-3 border-b"
-            style={{ borderColor: "var(--steel-soft)" }}
-          >
-            <button
-              onClick={handleNewConversation}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-[var(--radius-sm)] border transition-colors duration-150"
-              style={{
-                borderColor: "var(--steel)",
-                color: "var(--ink-secondary)",
-                background: "transparent",
-                fontSize: 13,
-                cursor: "pointer",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--surface-2)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-              }}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 16 16"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                aria-hidden="true"
-              >
-                <path
-                  d="M8 1v14M1 8h14"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-              Nova análise
-            </button>
-          </div>
-
-          {/* Conversation list */}
-          <div className="flex-1 overflow-y-auto">
-            {conversations.map((conv, idx) => {
-              const isActive = conv.id === activeConversationId;
-              return (
-                <button
-                  key={conv.id}
-                  onClick={() => switchConversation(conv.id)}
-                  className="w-full text-left px-4 py-3 border-b transition-colors duration-100"
-                  style={{
-                    borderColor: "var(--steel-soft)",
-                    background: isActive ? "var(--surface-2)" : "transparent",
-                    cursor: "pointer",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive)
-                      e.currentTarget.style.background = "var(--surface-1)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive)
-                      e.currentTarget.style.background = "transparent";
-                  }}
-                >
-                  <Text
-                    variant="body-sm"
-                    color={isActive ? "primary" : "secondary"}
-                    style={{ fontWeight: isActive ? 600 : 400 }}
-                  >
-                    {conv.title || `Análise ${idx + 1}`}
-                  </Text>
-                  <Text variant="caption" color="muted" className="mt-0.5">
-                    {new Date(conv.createdAt).toLocaleDateString("pt-BR", {
-                      day: "2-digit",
-                      month: "2-digit",
-                    })}
-                  </Text>
-                </button>
-              );
-            })}
-          </div>
+          <ConversationsSidebar
+            conversations={conversations}
+            activeConversationId={activeConversationId}
+            onNew={handleNewConversation}
+            onSelect={switchConversation}
+          />
         </aside>
+
+        {/* Sidebar — mobile drawer */}
+        <Drawer
+          open={chatSidebarOpen}
+          onClose={() => setChatSidebarOpen(false)}
+          side="left"
+          ariaLabel="Conversas"
+        >
+          <ConversationsSidebar
+            conversations={conversations}
+            activeConversationId={activeConversationId}
+            onNew={() => {
+              setChatSidebarOpen(false);
+              handleNewConversation();
+            }}
+            onSelect={(id) => {
+              setChatSidebarOpen(false);
+              switchConversation(id);
+            }}
+          />
+        </Drawer>
 
         {/* Main chat area */}
         <div className="flex-1 flex flex-col overflow-hidden">

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { SessionProvider } from 'next-auth/react'
 import { auth } from '@/auth'
+import { HeaderGate } from '@/components/HeaderGate'
 import './globals.css'
 
 const geistSans = Geist({
@@ -31,8 +32,11 @@ export default async function RootLayout({
       lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
-        <SessionProvider session={session}>{children}</SessionProvider>
+      <body className="h-dvh flex flex-col overflow-hidden">
+        <SessionProvider session={session}>
+          <HeaderGate />
+          {children}
+        </SessionProvider>
       </body>
     </html>
   )
