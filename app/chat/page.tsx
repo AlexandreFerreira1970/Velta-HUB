@@ -140,14 +140,7 @@ function MessageBubble({
           }
         >
           {message.role === "assistant" ? (
-            <Markdown
-              components={{
-                li: ({ children }) => <li className="mt-2">{children}</li>,
-                ol: ({ children }) => <ol className="mt-2">{children}</ol>,
-              }}
-            >
-              {message.content}
-            </Markdown>
+            <Markdown>{message.content}</Markdown>
           ) : (
             message.content
           )}
@@ -282,6 +275,7 @@ function QuantitativeResponse({
             max="100"
             step="1"
             placeholder="0 – 100"
+            autoFocus
             value={localValue}
             error={error ?? undefined}
             disabled={disabled}
@@ -350,16 +344,14 @@ const HUB_FLOW: HubFlowItem[] = [
   },
   {
     type: "question",
-    content:
-      "Como você descreveria o clima organizacional? Os colaboradores parecem satisfeitos e motivados no dia a dia?",
+    content: "Como você avalia o clima organizacional atual da empresa?",
     dimension: "rh",
     field: "clima",
     inputType: "qualitative",
   },
   {
     type: "question",
-    content:
-      "Como é o engajamento da equipe? Eles se envolvem ativamente com os objetivos e iniciativas da empresa?",
+    content: "Como você avalia o nível de engajamento da equipe?",
     dimension: "rh",
     field: "engajamento",
     inputType: "qualitative",
@@ -396,16 +388,14 @@ const HUB_FLOW: HubFlowItem[] = [
   },
   {
     type: "question",
-    content:
-      "Como está o fluxo de caixa? A empresa tem reservas para cobrir suas operações e possíveis imprevistos?",
+    content: "Como você avalia a saúde atual do fluxo de caixa da empresa?",
     dimension: "fin",
     field: "caixa",
     inputType: "qualitative",
   },
   {
     type: "question",
-    content:
-      "Como tem sido o crescimento da receita? A empresa está em expansão ou em um momento de estabilidade?",
+    content: "Como você avalia o crescimento da receita no período recente?",
     dimension: "fin",
     field: "crescimento",
     inputType: "qualitative",
@@ -426,8 +416,7 @@ const HUB_FLOW: HubFlowItem[] = [
   },
   {
     type: "question",
-    content:
-      "Como está a produtividade operacional? A equipe consegue entregar dentro do que é esperado?",
+    content: "Como você avalia a produtividade operacional da equipe?",
     dimension: "log",
     field: "produtividade",
     inputType: "qualitative",
@@ -435,7 +424,7 @@ const HUB_FLOW: HubFlowItem[] = [
   {
     type: "question",
     content:
-      "A capacidade instalada está sendo bem aproveitada? Há muita ociosidade ou, ao contrário, sobrecarga frequente?",
+      "Como você avalia o aproveitamento da capacidade instalada da empresa?",
     dimension: "log",
     field: "capacidade",
     inputType: "qualitative",
@@ -451,7 +440,7 @@ const HUB_FLOW: HubFlowItem[] = [
   {
     type: "question",
     content:
-      "Como estão os prazos de entrega? Os clientes recebem seus pedidos ou serviços no tempo combinado?",
+      "Como você avalia o cumprimento dos prazos de entrega aos clientes?",
     dimension: "log",
     field: "tempoEntrega",
     inputType: "qualitative",
@@ -464,8 +453,7 @@ const HUB_FLOW: HubFlowItem[] = [
   },
   {
     type: "question",
-    content:
-      "A geração de leads tem sido consistente? A empresa consegue atrair novos potenciais clientes regularmente?",
+    content: "Como você avalia a consistência da geração de leads da empresa?",
     dimension: "mkt",
     field: "leads",
     inputType: "qualitative",
@@ -480,8 +468,7 @@ const HUB_FLOW: HubFlowItem[] = [
   },
   {
     type: "question",
-    content:
-      "Como está a retenção de clientes? Eles costumam voltar a comprar ou a empresa depende muito de conquistar novos clientes?",
+    content: "Como você avalia a retenção de clientes da empresa?",
     dimension: "mkt",
     field: "retencao",
     inputType: "qualitative",
@@ -503,7 +490,7 @@ const HUB_FLOW: HubFlowItem[] = [
   {
     type: "question",
     content:
-      "A empresa tem iniciativas voltadas à sustentabilidade ou redução de impacto ambiental? Como isso é tratado internamente?",
+      "Como você avalia as iniciativas ambientais e de sustentabilidade da empresa?",
     dimension: "esg",
     field: "ambiental",
     inputType: "qualitative",
@@ -511,7 +498,7 @@ const HUB_FLOW: HubFlowItem[] = [
   {
     type: "question",
     content:
-      "Como a empresa se relaciona com colaboradores, comunidade e parceiros? Há programas ou práticas sociais relevantes?",
+      "Como você avalia o relacionamento da empresa com colaboradores, comunidade e parceiros?",
     dimension: "esg",
     field: "social",
     inputType: "qualitative",
@@ -519,7 +506,7 @@ const HUB_FLOW: HubFlowItem[] = [
   {
     type: "question",
     content:
-      "Como está a governança da empresa? Existem processos, políticas e práticas de transparência e ética bem definidos?",
+      "Como você avalia a governança da empresa (processos, transparência e ética)?",
     dimension: "esg",
     field: "governanca",
     inputType: "qualitative",
@@ -603,6 +590,14 @@ export default function ChatPage() {
   const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(
     null,
   );
+  const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
+  useEffect(() => {
+    if (bottomRef.current && !hasScrolledToBottom && messages.length > 0) {
+      setHasScrolledToBottom(true);
+      bottomRef.current.scrollIntoView();
+    }
+  }, [messages, hasScrolledToBottom]);
+
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -1243,11 +1238,6 @@ export default function ChatPage() {
     if (!loading) textareaRef.current?.focus();
   }, [loading]);
 
-  // Auto-scroll
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingMessage]);
-
   // Auto-resize textarea
   useEffect(() => {
     const el = textareaRef.current;
@@ -1273,6 +1263,10 @@ export default function ChatPage() {
       timestamp: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, userMsg]);
+
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
 
     // ── Onboarding: company name ──────────────────────────────────────────
     if (onboardingStep === "ask_company") {
@@ -1372,8 +1366,18 @@ export default function ChatPage() {
       const decoder = new TextDecoder();
       let buffer = "";
       let accumulated = "";
+      let index = 0;
 
       while (true) {
+        index++;
+
+        if (index === 1) {
+          window.scrollTo({
+            top: document.body.scrollHeight,
+            behavior: "smooth",
+          });
+        }
+
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -1399,7 +1403,10 @@ export default function ChatPage() {
                 prev ? { ...prev, content: accumulated } : prev,
               );
             }
-            if (data.done) break;
+            if (data.done) {
+              setStreamingMessage(null);
+              break;
+            }
           } catch {
             // skip malformed chunk
           }
@@ -1682,7 +1689,7 @@ export default function ChatPage() {
                   strokeLinecap="round"
                 />
               </svg>
-              Nova conversa
+              Nova análise
             </button>
           </div>
 
@@ -1714,7 +1721,7 @@ export default function ChatPage() {
                     color={isActive ? "primary" : "secondary"}
                     style={{ fontWeight: isActive ? 600 : 400 }}
                   >
-                    {conv.title || `Conversa ${idx + 1}`}
+                    {conv.title || `Análise ${idx + 1}`}
                   </Text>
                   <Text variant="caption" color="muted" className="mt-0.5">
                     {new Date(conv.createdAt).toLocaleDateString("pt-BR", {

@@ -29,7 +29,7 @@ export async function POST() {
 
     const userId = session.user.id;
     const existing = await listConversations(userId);
-    const title = `Conversa ${existing.length + 1}`;
+    const title = `Análise ${existing.length + 1}`;
 
     const conversation = await createConversation(userId, title);
 
