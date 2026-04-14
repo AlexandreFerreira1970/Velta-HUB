@@ -1802,43 +1802,37 @@ export default function ChatPage() {
         >
           <div className="hub-overlay-content flex flex-col items-center text-center max-w-xl">
             {/* Animated orb */}
-            <div className="relative w-32 h-32 mb-8 flex items-center justify-center">
+            <div className="relative mb-8 flex items-center justify-center">
               <div
-                className="hub-pulse-ring absolute inset-0 rounded-full"
+                className="hub-pulse-ring absolute rounded-full w-52 h-52 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
                 style={{
                   background:
                     "radial-gradient(circle, rgba(59, 130, 246, 0.5), rgba(29, 78, 216, 0) 70%)",
                 }}
               />
               <div
-                className="hub-orbit absolute inset-2 rounded-full"
+                className="hub-orbit absolute rounded-full w-52 h-52 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-6 ml-1"
                 style={{
-                  border: "1px solid rgba(147, 197, 253, 0.35)",
+                  border: "4px solid rgba(147, 197, 253, 0.35)",
                   borderTopColor: "rgba(219, 234, 254, 0.95)",
                   borderRightColor: "rgba(147, 197, 253, 0.75)",
                 }}
               />
-              <div
-                className="hub-float relative w-16 h-16 rounded-full flex items-center justify-center"
+              <Image
+                src="/velta-beautiful-image.webp"
+                alt="Logo"
+                unoptimized
+                className="object-cover"
+                width={200}
+                height={200}
                 style={{
-                  background:
-                    "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)",
-                  boxShadow:
-                    "0 0 40px rgba(59, 130, 246, 0.55), 0 0 80px rgba(29, 78, 216, 0.35)",
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  borderRadius: "20px",
+                  boxShadow: "0 2px 12px 5px rgba(0, 0, 0, 0.1)",
                 }}
-              >
-                <span
-                  style={{
-                    color: "#f8fafc",
-                    fontSize: 22,
-                    fontWeight: 700,
-                    letterSpacing: "-0.02em",
-                    fontFamily: "var(--font-geist-sans)",
-                  }}
-                >
-                  V
-                </span>
-              </div>
+              />
             </div>
 
             {hubAnalysisStatus === "loading" || !hubMinDelayPassed ? (

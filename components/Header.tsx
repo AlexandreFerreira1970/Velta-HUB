@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { Drawer, Text } from "@/components/ui";
+import Image from "next/image";
 
 // ─── Icons ──────────────────────────────────────────────────────────────────
 
@@ -115,7 +116,7 @@ export function Header() {
 
   return (
     <header
-      className="flex items-center justify-between px-4 md:px-6 h-14 shrink-0 border-b"
+      className="flex items-center justify-between px-4 md:px-6 h-16 shrink-0 border-b"
       style={{
         background: "var(--surface-0)",
         borderColor: "var(--steel-soft)",
@@ -145,28 +146,14 @@ export function Header() {
           className="flex items-center gap-2 md:gap-2.5 shrink-0"
           style={{ textDecoration: "none" }}
         >
-          <div
-            className="w-6 h-6 rounded-[var(--radius-sm)] flex items-center justify-center"
-            style={{ background: "var(--navy)" }}
-          >
-            <span
-              style={{
-                color: "var(--ink-inverse)",
-                fontSize: 10,
-                fontWeight: 700,
-                fontFamily: "var(--font-geist-sans)",
-              }}
-            >
-              V
-            </span>
-          </div>
-          <Text
-            variant="subheading"
-            as="span"
-            style={{ color: "var(--navy)" }}
-          >
-            Velta
-          </Text>
+          <Image
+            src="/velta-logo.webp"
+            alt="Logo"
+            width={52}
+            height={52}
+            unoptimized
+            className="rounded-full"
+          />
         </Link>
 
         {/* Desktop nav */}
@@ -246,9 +233,7 @@ export function Header() {
                 textDecoration: "none",
                 padding: "14px 20px",
                 borderBottom: "1px solid var(--steel-soft)",
-                color: active
-                  ? "var(--ink-primary)"
-                  : "var(--ink-secondary)",
+                color: active ? "var(--ink-primary)" : "var(--ink-secondary)",
                 fontWeight: active ? 600 : 400,
                 background: active ? "var(--surface-2)" : "transparent",
               };
