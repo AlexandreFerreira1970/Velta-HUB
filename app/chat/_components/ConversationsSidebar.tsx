@@ -89,12 +89,36 @@ export function ConversationsSidebar({
               >
                 {conv.title || `Análise ${idx + 1}`}
               </Text>
-              <Text variant="caption" color="muted" className="mt-0.5">
-                {new Date(conv.createdAt).toLocaleDateString("pt-BR", {
-                  day: "2-digit",
-                  month: "2-digit",
-                })}
-              </Text>
+              <div className="flex items-center gap-2 mt-0.5">
+                <Text variant="caption" color="muted">
+                  {new Date(conv.createdAt).toLocaleDateString("pt-BR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                  })}
+                </Text>
+                <span
+                  className="inline-flex items-center px-1.5 py-0.5 rounded-full"
+                  style={
+                    conv.hubQuestionIndex !== null
+                      ? {
+                          background: "rgba(217, 119, 6, 0.12)",
+                          color: "#b45309",
+                          fontSize: 10,
+                          fontWeight: 600,
+                          letterSpacing: 0.2,
+                        }
+                      : {
+                          background: "rgba(22, 163, 74, 0.12)",
+                          color: "#15803d",
+                          fontSize: 10,
+                          fontWeight: 600,
+                          letterSpacing: 0.2,
+                        }
+                  }
+                >
+                  {conv.hubQuestionIndex !== null ? "Em progresso" : "Concluída"}
+                </span>
+              </div>
             </button>
           );
         })}

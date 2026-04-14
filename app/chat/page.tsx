@@ -102,7 +102,7 @@ function MessageBubble({
       {!isUser && <AgentAvatar />}
       <div className="max-w-full md:max-w-[72%] space-y-1">
         <div
-          className="px-4 py-3 text-sm leading-relaxed pre-wrap flex flex-col gap-4"
+          className="px-4 py-3 text-sm leading-relaxed flex flex-col gap-4"
           style={
             isUser
               ? {
@@ -119,7 +119,74 @@ function MessageBubble({
           }
         >
           {message.role === "assistant" ? (
-            <Markdown>{message.content}</Markdown>
+            <div className="space-y-2">
+              <Markdown
+                components={{
+                  h1: (props) => (
+                    <h2
+                      className="text-base font-semibold mt-2 mb-1"
+                      {...props}
+                    />
+                  ),
+                  h2: (props) => (
+                    <h3
+                      className="text-sm font-semibold mt-2 mb-1"
+                      {...props}
+                    />
+                  ),
+                  h3: (props) => (
+                    <h4
+                      className="text-sm font-semibold mt-1 mb-1"
+                      {...props}
+                    />
+                  ),
+                  p: (props) => <p className="leading-relaxed" {...props} />,
+                  ul: (props) => (
+                    <ul className="list-disc pl-5 space-y-1" {...props} />
+                  ),
+                  ol: (props) => (
+                    <ol
+                      className="list-decimal pl-5 space-y-1 mt-8 first:mt-0"
+                      {...props}
+                    />
+                  ),
+                  li: (props) => <li className="leading-relaxed" {...props} />,
+                  strong: (props) => (
+                    <strong className="font-semibold" {...props} />
+                  ),
+                  em: (props) => <em className="italic" {...props} />,
+                  code: (props) => (
+                    <code
+                      className="px-1 py-0.5 rounded text-xs"
+                      style={{ background: "var(--surface-2)" }}
+                      {...props}
+                    />
+                  ),
+                  a: (props) => (
+                    <a
+                      className="underline"
+                      style={{ color: "var(--azure)" }}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      {...props}
+                    />
+                  ),
+                  hr: () => <hr style={{ borderColor: "var(--steel-soft)" }} />,
+                  blockquote: (props) => (
+                    <blockquote
+                      className="pl-3 italic"
+                      style={{
+                        borderLeft: "3px solid var(--steel-soft)",
+                        color: "var(--ink-secondary)",
+                      }}
+                      {...props}
+                    />
+                  ),
+                }}
+              >
+                {message.content}
+              </Markdown>
+            </div>
           ) : (
             message.content
           )}
@@ -292,6 +359,12 @@ type OnboardingStep =
   | "ask_business"
   | "hub"
   | "done";
+
+const FIRST_TIME_WELCOME_COPY =
+  "Bem-vindo ao Hub Intelligence Velta. Aqui, decisões deixam de ser intuitivas e passam a ser estruturadas. Vamos começar?";
+
+const WELCOME_BACK_COPY =
+  "Bem-vindo de volta ao Hub Intelligence Velta. Você pode conversar sobre uma análise anterior pelo menu à esquerda ou iniciar uma nova análise.";
 
 function botMsg(id: string, content: string): ChatMessage {
   return {
@@ -595,6 +668,7 @@ export default function ChatPage() {
   const [activeConversationId, setActiveConversationId] = useState<
     string | null
   >(null);
+  const [chatBlocked, setChatBlocked] = useState(false);
   const activeConversationIdRef = useRef<string | null>(null);
 
   // Keep ref in sync for use in callbacks
@@ -692,6 +766,7 @@ export default function ChatPage() {
   const switchConversation = useCallback(
     async (convId: string) => {
       if (convId === activeConversationId) return;
+      setChatBlocked(false);
       setActiveConversationId(convId);
       setMessages([]);
       setHistoryLoading(true);
@@ -702,7 +777,76 @@ export default function ChatPage() {
           `/api/chat?conversationId=${encodeURIComponent(convId)}`,
         );
         const data = await res.json();
-        setMessages(data.messages ?? []);
+        const savedMessages = (data?.messages ?? []) as ChatMessage[];
+        const savedHubQIndex = data?.hubQuestionIndex as number | null;
+        setMessages(savedMessages);
+
+        if (typeof savedHubQIndex === "number") {
+          // Resume hub flow from saved state
+          setHubQuestionIndex(savedHubQIndex);
+
+          const answered: Record<
+            number,
+            { value: number; label?: string }
+          > = {};
+          const contentToIdx = new Map<string, number>();
+          for (let fi = 0; fi < HUB_FLOW.length; fi++) {
+            if (HUB_FLOW[fi].type === "question")
+              contentToIdx.set(HUB_FLOW[fi].content, fi);
+          }
+          for (let mi = 0; mi < savedMessages.length; mi++) {
+            const msg = savedMessages[mi];
+            if (msg.role !== "assistant") continue;
+            let qi: number | null = null;
+            const qMatch = msg.id.match(/^hub-q-(\d+)$/);
+            if (qMatch) {
+              qi = parseInt(qMatch[1], 10);
+            } else if (contentToIdx.has(msg.content)) {
+              qi = contentToIdx.get(msg.content)!;
+            }
+            if (qi === null) continue;
+            const item = HUB_FLOW[qi];
+            if (!item || item.type !== "question") continue;
+            const answerMsg = savedMessages
+              .slice(mi + 1)
+              .find((m) => m.role === "user");
+            if (answerMsg) {
+              const numVal = Number(answerMsg.content);
+              if (!isNaN(numVal)) {
+                answered[qi] = { value: numVal };
+              } else {
+                const opt = QUALITATIVE_OPTIONS.find(
+                  (o) => o.label === answerMsg.content,
+                );
+                if (opt) {
+                  answered[qi] = { value: opt.value, label: opt.label };
+                }
+              }
+            }
+          }
+          setHubAnsweredQuestions(answered);
+
+          const responses: Record<string, Record<string, number>> = {
+            rh: {},
+            fin: {},
+            log: {},
+            mkt: {},
+            esg: {},
+          };
+          for (const [idxStr, ans] of Object.entries(answered)) {
+            const item = HUB_FLOW[Number(idxStr)];
+            if (item.type === "question") {
+              responses[item.dimension][item.field] = ans.value;
+            }
+          }
+          setHubResponses(responses);
+          setOnboardingStep("hub");
+        } else {
+          // Completed analysis → free chat
+          setHubAnsweredQuestions({});
+          setHubResponses({ rh: {}, fin: {}, log: {}, mkt: {}, esg: {} });
+          setOnboardingStep("done");
+        }
       } catch (err) {
         console.error("[switchConversation]", err);
       } finally {
@@ -751,6 +895,7 @@ export default function ChatPage() {
 
   // ── Helper: create new conversation + switch + start hub flow ────────────
   const handleNewConversation = useCallback(async () => {
+    setChatBlocked(false);
     const convId = await createNewConversation();
     setActiveConversationId(convId);
 
@@ -956,21 +1101,50 @@ export default function ChatPage() {
         needsHubRef.current = !hubDone;
 
         if (!missingCompany && !missingBusiness) {
-          if (!hubDone) {
-            // Profile complete but hub not done → check for existing conversation with hub state
-            let convId: string;
-            if (convList.length > 0) {
-              convId = convList[convList.length - 1].id;
-            } else {
-              const res = await fetch("/api/conversations", { method: "POST" });
-              const data = await res.json();
-              const conv = data.conversation as ConversationSummary;
-              setConversations([conv]);
-              convId = conv.id;
+          // Return-from-analysis deep link takes priority
+          const fromAnalysis = searchParams.get("fromAnalysis") === "true";
+          const targetConvId = searchParams.get("conversationId");
+          if (fromAnalysis && targetConvId) {
+            setActiveConversationId(targetConvId);
+            const raw = sessionStorage.getItem("hub_analysis_context");
+            if (raw) {
+              sessionStorage.removeItem("hub_analysis_context");
+              try {
+                pendingAnalysisRef.current = JSON.parse(raw) as DecisionOutput;
+              } catch {
+                // ignore parse errors
+              }
             }
+            loadHistoryOnDone.current = true;
+            setOnboardingStep("done");
+            return;
+          }
+
+          // First-time user: no analyses yet → welcome msg + auto-start new analysis
+          if (convList.length === 0) {
+            const res = await fetch("/api/conversations", { method: "POST" });
+            const data = await res.json();
+            const conv = data.conversation as ConversationSummary;
+            setConversations([conv]);
+            setActiveConversationId(conv.id);
+            const welcome = botMsg("welcome-first", FIRST_TIME_WELCOME_COPY);
+            setMessages([welcome]);
+            startHubFlow(conv.id, 0, "append");
+            setHistoryLoading(false);
+            return;
+          }
+
+          // Has analyses: prefer the last pending one (hub flow not yet finished)
+          const pending = convList.filter((c) => c.hubQuestionIndex !== null);
+          if (pending.length > 0) {
+            const lastPending = pending.reduce((a, b) => {
+              const aT = new Date(a.updatedAt || a.createdAt).getTime();
+              const bT = new Date(b.updatedAt || b.createdAt).getTime();
+              return bT >= aT ? b : a;
+            });
+            const convId = lastPending.id;
             setActiveConversationId(convId);
 
-            // Check if there's an existing hub flow in progress
             const convRes = await fetch(
               `/api/chat?conversationId=${encodeURIComponent(convId)}`,
             );
@@ -982,11 +1156,10 @@ export default function ChatPage() {
               savedMessages.length > 0 &&
               typeof savedHubQIndex === "number"
             ) {
-              // Resume hub flow from saved state (IDs like hub-q-N are preserved from DB)
+              // Resume hub flow from saved state (IDs like hub-q-N preserved from DB)
               setMessages(savedMessages);
               setHubQuestionIndex(savedHubQIndex);
 
-              // Rebuild hubAnsweredQuestions — dual matching (by ID or content fallback)
               const answered: Record<
                 number,
                 { value: number; label?: string }
@@ -999,7 +1172,6 @@ export default function ChatPage() {
               for (let mi = 0; mi < savedMessages.length; mi++) {
                 const msg = savedMessages[mi];
                 if (msg.role !== "assistant") continue;
-                // Try ID match first, then content fallback
                 let qi: number | null = null;
                 const qMatch = msg.id.match(/^hub-q-(\d+)$/);
                 if (qMatch) {
@@ -1010,7 +1182,6 @@ export default function ChatPage() {
                 if (qi === null) continue;
                 const item = HUB_FLOW[qi];
                 if (!item || item.type !== "question") continue;
-                // Find the next user message after this question
                 const answerMsg = savedMessages
                   .slice(mi + 1)
                   .find((m) => m.role === "user");
@@ -1033,7 +1204,6 @@ export default function ChatPage() {
               }
               setHubAnsweredQuestions(answered);
 
-              // Rebuild hubResponses from answered questions
               const responses: Record<string, Record<string, number>> = {
                 rh: {},
                 fin: {},
@@ -1048,72 +1218,22 @@ export default function ChatPage() {
                 }
               }
               setHubResponses(responses);
-
               setHistoryLoading(false);
               setOnboardingStep("hub");
-            } else if (savedMessages.length === 0) {
-              // Fresh start
+            } else {
+              // Pending but empty — start fresh hub in place
               startHubFlow(convId, 0);
               setHistoryLoading(false);
-            } else {
-              // Has messages but no hub state — start fresh hub
-              startHubFlow(convId, 0, "append");
-              setHistoryLoading(false);
             }
-          } else {
-            // All done → check for fromAnalysis or load most recent
-            const fromAnalysis = searchParams.get("fromAnalysis") === "true";
-            const targetConvId = searchParams.get("conversationId");
-
-            if (fromAnalysis && targetConvId) {
-              setActiveConversationId(targetConvId);
-
-              // Store analysis output for AI to generate initial message after history loads
-              const raw = sessionStorage.getItem("hub_analysis_context");
-              if (raw) {
-                sessionStorage.removeItem("hub_analysis_context");
-                try {
-                  pendingAnalysisRef.current = JSON.parse(
-                    raw,
-                  ) as DecisionOutput;
-                } catch {
-                  // ignore parse errors
-                }
-              }
-
-              loadHistoryOnDone.current = true;
-              setOnboardingStep("done");
-            } else {
-              loadHistoryOnDone.current = true;
-              if (convList.length > 0) {
-                const lastConv = convList[convList.length - 1];
-                setActiveConversationId(lastConv.id);
-
-                if (lastConv.hubQuestionIndex === null) {
-                  setOnboardingStep("done");
-                } else {
-                  const messages = await fetch(
-                    `/api/chat?conversationId=${encodeURIComponent(lastConv.id)}`,
-                  );
-                  const messagesData = messages.ok
-                    ? await messages.json()
-                    : null;
-                  const messagesDataMessages = messagesData?.messages ?? [];
-                  setOnboardingStep("hub");
-                  startHubFlow(
-                    lastConv.id,
-                    lastConv.hubQuestionIndex,
-                    "append",
-                    false,
-                  );
-                  setMessages(messagesDataMessages);
-                  setHistoryLoading(false);
-                }
-              } else {
-                setOnboardingStep("done");
-              }
-            }
+            return;
           }
+
+          // All analyses concluded → welcome-back + blocked chat
+          setActiveConversationId(null);
+          setMessages([botMsg("welcome-back", WELCOME_BACK_COPY)]);
+          setChatBlocked(true);
+          setOnboardingStep("done");
+          setHistoryLoading(false);
           return;
         }
 
@@ -1718,7 +1838,9 @@ export default function ChatPage() {
                       : "Digite sua mensagem... (Enter para enviar, Shift+Enter para nova linha)"
                   }
                   rows={1}
-                  disabled={loading || onboardingStep === "loading"}
+                  disabled={
+                    loading || onboardingStep === "loading" || chatBlocked
+                  }
                   className="flex-1 resize-none px-3 py-2.5 text-sm rounded-[var(--radius-sm)] border outline-none transition-colors duration-150 disabled:opacity-50"
                   style={{
                     background: "var(--control-bg)",
@@ -1740,7 +1862,10 @@ export default function ChatPage() {
                 <button
                   onClick={sendMessage}
                   disabled={
-                    !input.trim() || loading || onboardingStep === "loading"
+                    !input.trim() ||
+                    loading ||
+                    onboardingStep === "loading" ||
+                    chatBlocked
                   }
                   className="shrink-0 w-10 h-10 flex items-center justify-center rounded-[var(--radius-sm)] transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{
