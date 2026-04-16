@@ -785,10 +785,8 @@ export default function ChatPage() {
           // Resume hub flow from saved state
           setHubQuestionIndex(savedHubQIndex);
 
-          const answered: Record<
-            number,
-            { value: number; label?: string }
-          > = {};
+          const answered: Record<number, { value: number; label?: string }> =
+            {};
           const contentToIdx = new Map<string, number>();
           for (let fi = 0; fi < HUB_FLOW.length; fi++) {
             if (HUB_FLOW[fi].type === "question")
@@ -1926,30 +1924,14 @@ export default function ChatPage() {
           aria-busy={hubAnalysisStatus === "loading"}
         >
           <div className="hub-overlay-content flex flex-col items-center text-center max-w-xl">
-            {/* Animated orb */}
             <div className="relative mb-8 flex items-center justify-center">
-              <div
-                className="hub-pulse-ring absolute rounded-full w-52 h-52 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-                style={{
-                  background:
-                    "radial-gradient(circle, rgba(59, 130, 246, 0.5), rgba(29, 78, 216, 0) 70%)",
-                }}
-              />
-              <div
-                className="hub-orbit absolute rounded-full w-52 h-52 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-6 ml-1"
-                style={{
-                  border: "4px solid rgba(147, 197, 253, 0.35)",
-                  borderTopColor: "rgba(219, 234, 254, 0.95)",
-                  borderRightColor: "rgba(147, 197, 253, 0.75)",
-                }}
-              />
-              <Image
-                src="/velta-beautiful-image.webp"
-                alt="Logo"
-                unoptimized
+              <video
+                src="/velta-video.webm"
                 className="object-cover"
-                width={200}
-                height={200}
+                autoPlay
+                loop
+                muted
+                playsInline
                 style={{
                   width: "100%",
                   height: "100%",
