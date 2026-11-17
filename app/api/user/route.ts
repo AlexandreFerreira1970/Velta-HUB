@@ -1,39 +1,39 @@
-import { auth } from '@/auth'
-import { getUserById, updateUserProfile } from '@/lib/users'
+import { getUserById, updateUserProfile } from "@/lib/users";
+import { badRequest, getSessionUserId, readJson, unauthorized } from "@/lib/api";
+import type { UserProfileUpdate } from "@/lib/types";
 
-export const runtime = 'nodejs'
+export const runtime = "nodejs";
 
 export async function GET(): Promise<Response> {
-  const session = await auth()
-  if (!session?.user?.id) return new Response('Unauthorized', { status: 401 })
+  const userId = await getSessionUserId();
+  if (!userId) return unauthorized();
 
-  const user = await getUserById(session.user.id)
-  if (!user) return new Response('Not found', { status: 404 })
+  const user = await getUserById(userId);
+  if (!user) return new Response("Not found", { status: 404 });
 
-  return Response.json({ user })
+  return Response.json({ user });
 }
 
 export async function PATCH(req: Request): Promise<Response> {
-  const session = await auth()
-  if (!session?.user?.id) return new Response('Unauthorized', { status: 401 })
+  const userId = await getSessionUserId();
+  if (!userId) return unauthorized();
 
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return new Response('Invalid JSON', { status: 400 })
-  }
+  const body = await readJson<Record<string, unknown>>(req);
+  if (body === undefined) return badRequest("Invalid JSON");
 
-  const b = body as Record<string, unknown>
-  const update: { companyName?: string; businessType?: string; hubAnalysisDone?: boolean } = {}
-  if (typeof b.companyName === 'string' && b.companyName.trim()) update.companyName = b.companyName.trim()
-  if (typeof b.businessType === 'string' && b.businessType.trim()) update.businessType = b.businessType.trim()
-  if (typeof b.hubAnalysisDone === 'boolean') update.hubAnalysisDone = b.hubAnalysisDone
+  const b = body ?? {};
+  const update: UserProfileUpdate = {};
+  if (typeof b.companyName === "string" && b.companyName.trim())
+    update.companyName = b.companyName.trim();
+  if (typeof b.businessType === "string" && b.businessType.trim())
+    update.businessType = b.businessType.trim();
+  if (typeof b.hubAnalysisDone === "boolean")
+    update.hubAnalysisDone = b.hubAnalysisDone;
 
-  if (!Object.keys(update).length) return new Response('No valid fields', { status: 400 })
+  if (!Object.keys(update).length) return badRequest("No valid fields");
 
-  const updated = await updateUserProfile(session.user.id, update)
-  if (!updated) return new Response('User not found', { status: 404 })
+  const updated = await updateUserProfile(userId, update);
+  if (!updated) return new Response("User not found", { status: 404 });
 
-  return Response.json({ user: updated })
+  return Response.json({ user: updated });
 }

@@ -2,141 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Input, Text } from "@/components/ui";
-import type { HubInput, DecisionOutput } from "@/lib/types";
+import { Text } from "@/components/ui";
+import { DimensionSection } from "./_components/DimensionSection";
+import { DIMENSIONS } from "./_lib/dimensions";
+import { storeHubResult } from "@/lib/hub-session";
+import { emptyHubValues, toHubInput } from "@/lib/hub-input";
+import type { Dimension } from "@/lib/types";
+import { useCalculateHub } from "@/hooks/useCalculateHub";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
-type FieldDef = { key: string; label: string; helper?: string };
-type DimensionDef = { id: keyof HubInput; title: string; fields: FieldDef[] };
+// --- Default empty form state -------------------------------------------------
 
-const DIMENSIONS: DimensionDef[] = [
-  {
-    id: "rh",
-    title: "RH — Recursos Humanos",
-    fields: [
-      {
-        key: "turnover",
-        label: "Turnover (%)",
-        helper: "Taxa de rotatividade — quanto maior, pior",
-      },
-      {
-        key: "clima",
-        label: "Clima Organizacional",
-        helper: "Pesquisa de clima — 0 a 100",
-      },
-      {
-        key: "engajamento",
-        label: "Engajamento da Equipe",
-        helper: "Nível de engajamento — 0 a 100",
-      },
-      {
-        key: "absenteismo",
-        label: "Absenteísmo (%)",
-        helper: "Taxa de ausências — quanto maior, pior",
-      },
-    ],
-  },
-  {
-    id: "fin",
-    title: "FIN — Financeiro",
-    fields: [
-      {
-        key: "margem",
-        label: "Margem (%)",
-        helper: "Margem de lucro normalizada 0-100",
-      },
-      {
-        key: "caixa",
-        label: "Saúde do Caixa",
-        helper: "Disponibilidade de caixa — 0 a 100",
-      },
-      {
-        key: "crescimento",
-        label: "Crescimento de Receita",
-        helper: "Taxa de crescimento normalizada 0-100",
-      },
-      {
-        key: "endividamento",
-        label: "Endividamento (%)",
-        helper: "Nível de endividamento — quanto maior, pior",
-      },
-    ],
-  },
-  {
-    id: "log",
-    title: "LOG — Logística & Operações",
-    fields: [
-      { key: "produtividade", label: "Produtividade", helper: "0 a 100" },
-      {
-        key: "capacidade",
-        label: "Capacidade Operacional",
-        helper: "% de capacidade disponível",
-      },
-      {
-        key: "retrabalho",
-        label: "Retrabalho (%)",
-        helper: "Taxa de retrabalho — quanto maior, pior",
-      },
-      {
-        key: "tempoEntrega",
-        label: "Tempo de Entrega",
-        helper: "Score de prazo — 100 = sempre no prazo",
-      },
-    ],
-  },
-  {
-    id: "mkt",
-    title: "MKT — Marketing & Vendas",
-    fields: [
-      {
-        key: "leads",
-        label: "Geração de Leads",
-        helper: "Volume de leads normalizado 0-100",
-      },
-      {
-        key: "conversao",
-        label: "Taxa de Conversão",
-        helper: "% de leads convertidos normalizado",
-      },
-      {
-        key: "retencao",
-        label: "Retenção de Clientes",
-        helper: "% de clientes retidos",
-      },
-      {
-        key: "cac",
-        label: "CAC (Custo de Aquisição)",
-        helper: "Custo normalizado — quanto maior, pior",
-      },
-    ],
-  },
-  {
-    id: "esg",
-    title: "ESG",
-    fields: [
-      {
-        key: "ambiental",
-        label: "Ambiental",
-        helper: "Score de práticas ambientais — 0 a 100",
-      },
-      {
-        key: "social",
-        label: "Social",
-        helper: "Score de impacto social — 0 a 100",
-      },
-      {
-        key: "governanca",
-        label: "Governança",
-        helper: "Score de governança corporativa — 0 a 100",
-      },
-    ],
-  },
-];
-
-// ─── Default empty form state ─────────────────────────────────────────────────
-
-type FormValues = Record<keyof HubInput, Record<string, string>>;
+type FormValues = Record<Dimension, Record<string, string>>;
 
 function defaultForm(): FormValues {
   const out = {} as FormValues;
@@ -149,50 +26,7 @@ function defaultForm(): FormValues {
   return out;
 }
 
-// ─── Dimension Section ────────────────────────────────────────────────────────
-
-function DimensionSection({
-  dim,
-  values,
-  errors,
-  onChange,
-}: {
-  dim: DimensionDef;
-  values: Record<string, string>;
-  errors: Record<string, string>;
-  onChange: (key: string, value: string) => void;
-}) {
-  return (
-    <div
-      className="rounded-[var(--radius-md)] border p-5 space-y-4"
-      style={{
-        background: "var(--surface-0)",
-        borderColor: "var(--steel-soft)",
-      }}
-    >
-      <Text variant="subheading">{dim.title}</Text>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {dim.fields.map((f) => (
-          <Input
-            key={f.key}
-            label={f.label}
-            helperText={f.helper}
-            type="number"
-            min="0"
-            max="100"
-            step="1"
-            value={values[f.key] ?? ""}
-            error={errors[f.key]}
-            onChange={(e) => onChange(f.key, e.target.value)}
-            placeholder="0 – 100"
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// --- Main Page ----------------------------------------------------------------
 
 export default function HubPage() {
   const router = useRouter();
@@ -201,10 +35,11 @@ export default function HubPage() {
   const [fieldErrors, setFieldErrors] = useState<
     Record<string, Record<string, string>>
   >({});
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const calculate = useCalculateHub();
+  const submitting = calculate.isPending;
+  const submitError = calculate.error?.message || null;
 
-  const handleChange = (dimId: keyof HubInput, key: string, value: string) => {
+  const handleChange = (dimId: Dimension, key: string, value: string) => {
     setForm((prev) => ({ ...prev, [dimId]: { ...prev[dimId], [key]: value } }));
     setFieldErrors((prev) => ({
       ...prev,
@@ -237,73 +72,26 @@ export default function HubPage() {
     return valid;
   };
 
-  const buildInput = (): HubInput => {
-    const parse = (dimId: keyof HubInput, key: string) =>
-      Number(form[dimId][key]);
-    return {
-      rh: {
-        turnover: parse("rh", "turnover"),
-        clima: parse("rh", "clima"),
-        engajamento: parse("rh", "engajamento"),
-        absenteismo: parse("rh", "absenteismo"),
-      },
-      fin: {
-        margem: parse("fin", "margem"),
-        caixa: parse("fin", "caixa"),
-        crescimento: parse("fin", "crescimento"),
-        endividamento: parse("fin", "endividamento"),
-      },
-      log: {
-        produtividade: parse("log", "produtividade"),
-        capacidade: parse("log", "capacidade"),
-        retrabalho: parse("log", "retrabalho"),
-        tempoEntrega: parse("log", "tempoEntrega"),
-      },
-      mkt: {
-        leads: parse("mkt", "leads"),
-        conversao: parse("mkt", "conversao"),
-        retencao: parse("mkt", "retencao"),
-        cac: parse("mkt", "cac"),
-      },
-      esg: {
-        ambiental: parse("esg", "ambiental"),
-        social: parse("esg", "social"),
-        governanca: parse("esg", "governanca"),
-      },
-      acoes: [],
-    };
+  const buildInput = () => {
+    const values = emptyHubValues();
+    for (const dim of DIMENSIONS) {
+      for (const f of dim.fields) {
+        values[dim.id][f.key] = Number(form[dim.id][f.key]);
+      }
+    }
+    return toHubInput(values);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
-    setSubmitting(true);
-    setSubmitError(null);
-
-    try {
-      const res = await fetch("/api/hub/calculate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildInput()),
-      });
-
-      if (!res.ok) {
-        const msg = await res.text();
-        throw new Error(msg || `HTTP ${res.status}`);
-      }
-
-      const { output } = (await res.json()) as { output: DecisionOutput };
-      sessionStorage.setItem(
-        "hub_result",
-        JSON.stringify({ output, conversationId: null }),
-      );
-      router.push("/hub/result");
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Erro desconhecido");
-    } finally {
-      setSubmitting(false);
-    }
+    calculate.mutate(buildInput(), {
+      onSuccess: (output) => {
+        storeHubResult({ output, conversationId: null });
+        router.push("/hub/result");
+      },
+    });
   };
 
   return (

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { SessionProvider } from 'next-auth/react'
 import { auth } from '@/auth'
 import { HeaderGate } from '@/components/HeaderGate'
+import { QueryProvider } from '@/components/QueryProvider'
 import './globals.css'
 
 const geistSans = Geist({
@@ -34,8 +35,10 @@ export default async function RootLayout({
     >
       <body className="h-dvh flex flex-col overflow-hidden">
         <SessionProvider session={session}>
-          <HeaderGate />
-          {children}
+          <QueryProvider>
+            <HeaderGate />
+            {children}
+          </QueryProvider>
         </SessionProvider>
       </body>
     </html>

@@ -12,7 +12,49 @@ export interface VeltaUser {
   lastLoginAt: string;
 }
 
-// ─── Hub Scoring Engine ───────────────────────────────────────────────────────
+export type UserProfileUpdate = Partial<
+  Pick<VeltaUser, "companyName" | "businessType" | "hubAnalysisDone">
+>;
+
+// --- Conversations -----------------------------------------------------------
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
+export interface ConversationDoc {
+  id: string; // UUID — unique per conversation
+  userId: string; // partition key
+  title: string;
+  lastResponseId: string | null;
+  /** AI provider that issued lastResponseId (missing on old docs = "azure"). */
+  lastResponseProvider?: "azure" | "openai";
+  initialAnalysisMessageSentAt?: string; // ISO timestamp — set after AI generates initial analysis message
+  hubQuestionIndex: number | null; // tracks current hub flow position; null = not in hub flow
+  messages: ChatMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  hubQuestionIndex: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Shape returned by GET /api/chat */
+export interface ConversationState {
+  messages: ChatMessage[];
+  initialAnalysisMessageSentAt: string | null;
+  hubQuestionIndex: number | null;
+}
+
+// --- Hub Scoring Engine -------------------------------------------------------
 
 export interface RHInput {
   turnover: number; // 0-100 (quanto maior, pior)
@@ -47,6 +89,17 @@ export interface ESGInput {
   social: number; // 0-100
   governanca: number; // 0-100
 }
+
+export type Dimension = "rh" | "fin" | "log" | "mkt" | "esg";
+
+/** Fields of each dimension, in display order. */
+export const HUB_DIMENSION_FIELDS = {
+  rh: ["turnover", "clima", "engajamento", "absenteismo"],
+  fin: ["margem", "caixa", "crescimento", "endividamento"],
+  log: ["produtividade", "capacidade", "retrabalho", "tempoEntrega"],
+  mkt: ["leads", "conversao", "retencao", "cac"],
+  esg: ["ambiental", "social", "governanca"],
+} as const satisfies Record<Dimension, readonly string[]>;
 
 export interface HubInput {
   acoes: string[];
