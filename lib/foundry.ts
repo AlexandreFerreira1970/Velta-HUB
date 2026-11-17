@@ -31,3 +31,92 @@ export function getOpenAIClient(): OpenAI {
     defaultHeaders: { "api-key": process.env.AZURE_FOUNDRY_API_KEY! },
   });
 }
+
+// --- Agents ------------------------------------------------------------------
+
+export interface AgentRef {
+  name: string;
+  version: string;
+}
+
+/** The general-purpose assistant agent configured via env. */
+export function defaultAgent(): AgentRef {
+  return {
+    name: process.env.AZURE_FOUNDRY_AGENT_NAME!,
+    version: process.env.AZURE_FOUNDRY_AGENT_VERSION ?? "1",
+  };
+}
+
+export const HUB_SCORE_AGENT: AgentRef = {
+  name: "calculadora-hub-score",
+  version: "8",
+};
+
+type AgentInput = string | Array<{ role: string; content: string }>;
+
+/* eslint-disable @typescript-eslint/no-explicit-any --
+ * The Foundry agent extension (`agent` body, loose event shapes) is not part
+ * of the OpenAI SDK typings, so the untyped surface is contained here. */
+
+function createResponse(
+  agent: AgentRef,
+  params: Record<string, unknown>,
+): Promise<any> {
+  return getOpenAIClient().responses.create(params as any, {
+    body: {
+      agent: { name: agent.name, version: agent.version, type: "agent_reference" },
+    },
+  } as any) as Promise<any>;
+}
+
+/** Runs the agent and returns its full text output. */
+export async function runAgent(
+  agent: AgentRef,
+  input: AgentInput,
+): Promise<string> {
+  const response = await createResponse(agent, { input, stream: false });
+  return (
+    response?.output_text ??
+    response?.output?.[0]?.content?.[0]?.text ??
+    response?.choices?.[0]?.message?.content ??
+    ""
+  );
+}
+
+export interface AgentStreamEvent {
+  /** Text delta, empty when the event carries no text. */
+  delta: string;
+  /** Set on `response.completed` — used for multi-turn continuity. */
+  responseId: string | null;
+}
+
+/** Streams the agent response, yielding text deltas and the final response id. */
+export async function* streamAgent(
+  agent: AgentRef,
+  input: AgentInput,
+  previousResponseId: string | null,
+): AsyncGenerator<AgentStreamEvent> {
+  const stream = await createResponse(agent, {
+    input,
+    ...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
+    stream: true,
+  });
+
+  for await (const event of stream as AsyncIterable<any>) {
+    console.log("[stream event]", event.type, JSON.stringify(event).slice(0, 160));
+
+    yield {
+      // Handle both naming conventions
+      delta:
+        event.delta ??
+        event.text?.delta ??
+        event.choices?.[0]?.delta?.content ??
+        "",
+      responseId:
+        event.type === "response.completed" && event.response?.id
+          ? (event.response.id as string)
+          : null,
+    };
+  }
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */

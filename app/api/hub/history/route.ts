@@ -1,19 +1,17 @@
-import { auth } from '@/auth'
-import { getHubHistory } from '@/lib/hub'
+import { getHubHistory } from "@/lib/hub";
+import { getSessionUserId, serverError, unauthorized } from "@/lib/api";
 
-export const runtime = 'nodejs'
+export const runtime = "nodejs";
 
 export async function GET(): Promise<Response> {
-  const session = await auth()
-  if (!session?.user?.id) {
-    return new Response('Unauthorized', { status: 401 })
-  }
+  const userId = await getSessionUserId();
+  if (!userId) return unauthorized();
 
   try {
-    const history = await getHubHistory(session.user.id)
-    return Response.json({ history })
+    const history = await getHubHistory(userId);
+    return Response.json({ history });
   } catch (err) {
-    console.error('[hub/history]', err)
-    return new Response('Internal server error', { status: 500 })
+    console.error("[hub/history]", err);
+    return serverError();
   }
 }

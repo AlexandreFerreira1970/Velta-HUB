@@ -2,7 +2,7 @@ import { getContainer } from './cosmos'
 import { calculateEffectiveness } from './scoring'
 import type { HubInput, DecisionOutput, HubDataDoc, DecisionRecord } from './types'
 
-// ─── hub_data container ───────────────────────────────────────────────────────
+// --- hub_data container -------------------------------------------------------
 
 export async function saveHubData(
   userId: string,
@@ -58,7 +58,7 @@ export async function getHubHistory(userId: string): Promise<HubDataDoc[]> {
   return resources
 }
 
-// ─── decisions container ──────────────────────────────────────────────────────
+// --- decisions container ------------------------------------------------------
 
 export async function saveDecisionRecord(
   record: Omit<DecisionRecord, 'id' | 'createdAt'>

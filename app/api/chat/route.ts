@@ -1,4 +1,3 @@
-import { auth } from "@/auth";
 import {
   getConversation,
   saveLastResponseId,
@@ -6,65 +5,54 @@ import {
   markInitialAnalysisSent,
   updateHubQuestionIndex,
 } from "@/lib/conversations";
-import { getOpenAIClient } from "@/lib/foundry";
+import { defaultAgent, streamAgent } from "@/lib/foundry";
+import {
+  badRequest,
+  getSessionUserId,
+  serverError,
+  unauthorized,
+} from "@/lib/api";
+import type { ConversationState } from "@/lib/types";
 
 export const runtime = "nodejs";
-
-const AGENT_NAME = process.env.AZURE_FOUNDRY_AGENT_NAME!;
-const AGENT_VERSION = process.env.AZURE_FOUNDRY_AGENT_VERSION ?? "1";
 
 // GET — load conversation history
 export async function GET(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return new Response("Unauthorized", { status: 401 });
-    }
+    const userId = await getSessionUserId();
+    if (!userId) return unauthorized();
 
-    const url = new URL(req.url);
-    const conversationId = url.searchParams.get("conversationId");
-    if (!conversationId) {
-      return new Response("conversationId is required", { status: 400 });
-    }
+    const conversationId = new URL(req.url).searchParams.get("conversationId");
+    if (!conversationId) return badRequest("conversationId is required");
 
-    const doc = await getConversation(conversationId, session.user.id);
+    const doc = await getConversation(conversationId, userId);
     return Response.json({
       messages: doc?.messages ?? [],
       initialAnalysisMessageSentAt: doc?.initialAnalysisMessageSentAt ?? null,
       hubQuestionIndex: doc?.hubQuestionIndex ?? null,
-    });
+    } satisfies ConversationState);
   } catch (error) {
     console.error("[chat GET]", error);
-    return new Response("Internal server error", { status: 500 });
+    return serverError();
   }
 }
 
-// POST — send message and stream response
+// POST — send message and stream response (SSE)
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return new Response("Unauthorized", { status: 401 });
-    }
+    const userId = await getSessionUserId();
+    if (!userId) return unauthorized();
 
     const { content, conversationId } = (await req.json()) as {
       content: string;
       conversationId: string;
     };
-    if (!content?.trim()) {
-      return new Response("content is required", { status: 400 });
-    }
-    if (!conversationId) {
-      return new Response("conversationId is required", { status: 400 });
-    }
-
-    const userId = session.user.id;
-    const openAI = getOpenAIClient();
+    if (!content?.trim()) return badRequest("content is required");
+    if (!conversationId) return badRequest("conversationId is required");
 
     const existing = await getConversation(conversationId, userId);
     const lastResponseId = existing?.lastResponseId ?? null;
 
-    // Save user message
     await appendMessage(conversationId, userId, {
       role: "user",
       content,
@@ -72,6 +60,8 @@ export async function POST(req: Request) {
     });
 
     const encoder = new TextEncoder();
+    const sse = (payload: object) =>
+      encoder.encode(`data: ${JSON.stringify(payload)}\n\n`);
 
     const readable = new ReadableStream({
       async start(controller) {
@@ -79,55 +69,15 @@ export async function POST(req: Request) {
         let newResponseId: string | null = null;
 
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const stream = (await openAI.responses.create(
-            {
-              input: content,
-              ...(lastResponseId
-                ? { previous_response_id: lastResponseId }
-                : {}),
-              stream: true,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            } as any,
-            {
-              body: {
-                agent: {
-                  name: AGENT_NAME,
-                  version: AGENT_VERSION,
-                  type: "agent_reference",
-                },
-              },
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            } as any,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          )) as any;
-
-          for await (const event of stream) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const e = event as any;
-            console.log(
-              "[stream event]",
-              e.type,
-              JSON.stringify(e).slice(0, 160),
-            );
-
-            // Capture the response ID for multi-turn continuity
-            if (e.type === "response.completed" && e.response?.id) {
-              newResponseId = e.response.id as string;
-            }
-
-            // Extract text delta — handle both naming conventions
-            const delta: string =
-              e.delta ??
-              e.text?.delta ??
-              e.choices?.[0]?.delta?.content ??
-              "";
-
+          for await (const { delta, responseId } of streamAgent(
+            defaultAgent(),
+            content,
+            lastResponseId,
+          )) {
+            if (responseId) newResponseId = responseId;
             if (delta) {
               fullText += delta;
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ delta })}\n\n`),
-              );
+              controller.enqueue(sse({ delta }));
             }
           }
 
@@ -137,21 +87,15 @@ export async function POST(req: Request) {
             content: fullText,
             timestamp: new Date().toISOString(),
           });
-
           if (newResponseId) {
             await saveLastResponseId(conversationId, userId, newResponseId);
           }
 
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({ done: true })}\n\n`),
-          );
+          controller.enqueue(sse({ done: true }));
         } catch (err) {
           console.error("[stream error]", err);
-          const message =
-            err instanceof Error ? err.message : "Unknown error";
-          controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify({ error: message })}\n\n`),
-          );
+          const message = err instanceof Error ? err.message : "Unknown error";
+          controller.enqueue(sse({ error: message }));
         } finally {
           controller.close();
         }
@@ -167,39 +111,35 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("[chat POST]", error);
-    return new Response("Internal server error", { status: 500 });
+    return serverError();
   }
 }
 
 // PATCH — update conversation metadata (initial analysis sent, hub flow state)
 export async function PATCH(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return new Response("Unauthorized", { status: 401 });
-    }
+    const userId = await getSessionUserId();
+    if (!userId) return unauthorized();
 
     const body = (await req.json()) as {
       conversationId: string;
       hubQuestionIndex?: number | null;
     };
-    if (!body.conversationId) {
-      return new Response("conversationId is required", { status: 400 });
-    }
+    if (!body.conversationId) return badRequest("conversationId is required");
 
     if (body.hubQuestionIndex !== undefined) {
       await updateHubQuestionIndex(
         body.conversationId,
-        session.user.id,
+        userId,
         body.hubQuestionIndex,
       );
     } else {
-      await markInitialAnalysisSent(body.conversationId, session.user.id);
+      await markInitialAnalysisSent(body.conversationId, userId);
     }
 
     return new Response(null, { status: 204 });
   } catch (error) {
     console.error("[chat PATCH]", error);
-    return new Response("Internal server error", { status: 500 });
+    return serverError();
   }
 }

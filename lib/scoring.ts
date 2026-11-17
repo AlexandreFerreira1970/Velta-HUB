@@ -15,13 +15,13 @@ import type {
   IULevel,
 } from "./types";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// --- Helpers ------------------------------------------------------------------
 
 export function clamp(value: number, min = 0, max = 100): number {
   return Math.min(max, Math.max(min, value));
 }
 
-// ─── Dimension Calculations ───────────────────────────────────────────────────
+// --- Dimension Calculations ---------------------------------------------------
 
 export function calculateRH(input: RHInput): number {
   return clamp(
@@ -65,7 +65,7 @@ export function calculateESG(input: ESGInput): number {
   );
 }
 
-// ─── Interdependency Matrix ───────────────────────────────────────────────────
+// --- Interdependency Matrix ---------------------------------------------------
 // Rules applied sequentially — each rule sees the state mutated by previous rules.
 // ESG penalizes HUB_SCORE directly (handled in calculateHubScore).
 
@@ -97,7 +97,7 @@ export function applyInterdependencyMatrix(
   return s;
 }
 
-// ─── Dynamic Weights ─────────────────────────────────────────────────────────
+// --- Dynamic Weights ---------------------------------------------------------
 
 export function calculateDynamicWeights(
   adjusted: DimensionScores,
@@ -120,7 +120,7 @@ export function calculateDynamicWeights(
   };
 }
 
-// ─── Hub Score ────────────────────────────────────────────────────────────────
+// --- Hub Score ----------------------------------------------------------------
 
 export function calculateHubScore(
   adjusted: DimensionScores,
@@ -141,7 +141,7 @@ export function calculateHubScore(
   return clamp(score);
 }
 
-// ─── Strategic Indices ────────────────────────────────────────────────────────
+// --- Strategic Indices --------------------------------------------------------
 
 export function calculateIRL(adjusted: DimensionScores): number {
   // Weighted risk: how far each critical dimension is from perfect
@@ -185,7 +185,7 @@ export function classifyIU(iu: number): IULevel {
   return "Crítica";
 }
 
-// ─── Decision Engine ─────────────────────────────────────────────────────────
+// --- Decision Engine ---------------------------------------------------------
 // Priority order — first match wins.
 
 export function classifyScenario(
@@ -200,9 +200,9 @@ export function classifyScenario(
   return "execucao_automatica";
 }
 
-// ─── Action Generation ────────────────────────────────────────────────────────
+// --- Action Generation --------------------------------------------------------
 
-// ─── Effectiveness ────────────────────────────────────────────────────────────
+// --- Effectiveness ------------------------------------------------------------
 
 export function calculateEffectiveness(
   obtained: number,
@@ -212,7 +212,7 @@ export function calculateEffectiveness(
   return clamp((obtained / expected) * 100, 0, Infinity);
 }
 
-// ─── Orchestrator ─────────────────────────────────────────────────────────────
+// --- Orchestrator -------------------------------------------------------------
 
 export function runScoringEngine(input: HubInput): DecisionOutput {
   const rawDimensions: DimensionScores = {

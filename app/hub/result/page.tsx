@@ -1,234 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Text } from "@/components/ui";
-import type {
-  DecisionOutput,
-  ScenarioClassification,
-  DimensionScores,
-  DimensionWeights,
-} from "@/lib/types";
+import { scoreColor, scoreLabel } from "@/lib/hub-display";
+import {
+  readHubResult,
+  storeAnalysisContext,
+} from "@/lib/hub-session";
+import { useStoredHubResult } from "@/hooks/useStoredHubResult";
+import type { DimensionScores } from "@/lib/types";
+import { DimensionCard } from "./_components/DimensionCard";
+import { IndexRow } from "./_components/IndexRow";
+import { ScenarioBadge } from "./_components/ScenarioBadge";
+import { WeightsBar } from "./_components/WeightsBar";
+import { DIMENSION_LABELS } from "./_lib/dimensionDisplay";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function scoreColor(score: number): string {
-  if (score >= 75) return "var(--semantic-success)";
-  if (score >= 50) return "var(--semantic-warning)";
-  return "var(--semantic-error)";
-}
-
-function scoreLabel(score: number): string {
-  if (score >= 81) return "Alta Performance";
-  if (score >= 61) return "Estável";
-  if (score >= 41) return "Atenção";
-  return "Crítico";
-}
-
-const SCENARIO_CONFIG: Record<
-  ScenarioClassification,
-  { label: string; bg: string; color: string }
-> = {
-  bloqueio_automatico: {
-    label: "Bloqueio Automático",
-    bg: "var(--semantic-error)",
-    color: "#fff",
-  },
-  prioridade_critica: {
-    label: "Prioridade Crítica",
-    bg: "var(--semantic-warning)",
-    color: "#000",
-  },
-  aprovacao_obrigatoria: {
-    label: "Aprovação Obrigatória",
-    bg: "var(--navy)",
-    color: "#fff",
-  },
-  execucao_assistida: {
-    label: "Execução Assistida",
-    bg: "var(--azure)",
-    color: "#fff",
-  },
-  execucao_automatica: {
-    label: "Execução Automática",
-    bg: "var(--semantic-success)",
-    color: "#fff",
-  },
-};
-
-const DIMENSION_LABELS: Record<keyof DimensionScores, string> = {
-  rh: "RH",
-  fin: "FIN",
-  log: "LOG",
-  mkt: "MKT",
-  esg: "ESG",
-};
-
-const DIMENSION_COLORS: Record<keyof DimensionScores, string> = {
-  rh: "var(--navy)",
-  fin: "var(--azure)",
-  log: "#6b7280",
-  mkt: "#8b5cf6",
-  esg: "#10b981",
-};
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function ScenarioBadge({ scenario }: { scenario: ScenarioClassification }) {
-  const cfg = SCENARIO_CONFIG[scenario];
-  return (
-    <span
-      className="inline-block px-3 py-1 rounded-full text-xs font-semibold mt-2"
-      style={{ background: cfg.bg, color: cfg.color }}
-    >
-      {cfg.label}
-    </span>
-  );
-}
-
-function DimensionCard({
-  label,
-  raw,
-  adjusted,
-}: {
-  label: string;
-  raw: number;
-  adjusted: number;
-}) {
-  const delta = adjusted - raw;
-  const hasDelta = Math.abs(delta) > 0.05;
-
-  return (
-    <div
-      className="rounded-[var(--radius-md)] border p-4 flex flex-col gap-1"
-      style={{
-        background: "var(--surface-0)",
-        borderColor: "var(--steel-soft)",
-      }}
-    >
-      <Text variant="overline" color="tertiary">
-        {label}
-      </Text>
-      <span
-        className="text-2xl font-semibold tabular-nums"
-        style={{
-          color: scoreColor(adjusted),
-          fontFamily: "var(--font-geist-mono, monospace)",
-        }}
-      >
-        {adjusted.toFixed(1)}
-      </span>
-      {hasDelta && (
-        <Text variant="caption" style={{ color: "var(--semantic-warning)" }}>
-          {raw.toFixed(1)} → {adjusted.toFixed(1)} ({delta > 0 ? "+" : ""}
-          {delta.toFixed(1)})
-        </Text>
-      )}
-    </div>
-  );
-}
-
-function IndexRow({
-  label,
-  value,
-  level,
-}: {
-  label: string;
-  value: number;
-  level: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <Text variant="body-sm" color="secondary">
-        {label}
-      </Text>
-      <div className="flex items-center gap-2 shrink-0">
-        <span
-          className="tabular-nums text-sm font-semibold"
-          style={{
-            color: scoreColor(100 - value),
-            fontFamily: "var(--font-geist-mono, monospace)",
-          }}
-        >
-          {value.toFixed(1)}
-        </span>
-        <span
-          className="text-xs px-2 py-0.5 rounded-full"
-          style={{
-            background: "var(--surface-2)",
-            color: "var(--ink-secondary)",
-          }}
-        >
-          {level}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function WeightsBar({ weights }: { weights: DimensionWeights }) {
-  const dims = Object.keys(weights) as (keyof DimensionWeights)[];
-  return (
-    <div className="space-y-2">
-      <div className="flex h-6 rounded-full overflow-hidden">
-        {dims.map((d) => (
-          <div
-            key={d}
-            style={{
-              width: `${(weights[d] * 100).toFixed(1)}%`,
-              background: DIMENSION_COLORS[d],
-            }}
-            title={`${DIMENSION_LABELS[d]}: ${(weights[d] * 100).toFixed(1)}%`}
-          />
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-3">
-        {dims.map((d) => (
-          <div key={d} className="flex items-center gap-1.5">
-            <div
-              className="w-2.5 h-2.5 rounded-sm"
-              style={{ background: DIMENSION_COLORS[d] }}
-            />
-            <Text variant="caption" color="secondary">
-              {DIMENSION_LABELS[d]} {(weights[d] * 100).toFixed(1)}%
-            </Text>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// --- Main Page ----------------------------------------------------------------
 
 export default function HubResultPage() {
   const router = useRouter();
-  const [output, setOutput] = useState<
-    (DecisionOutput & { actions: string[] }) | null
-  >(null);
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const result = useStoredHubResult();
 
+  // Nothing to show → back to the analysis form
   useEffect(() => {
-    const raw = sessionStorage.getItem("hub_result");
-    if (!raw) {
-      router.push("/hub");
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw);
-      // Support both formats: { output, conversationId } and legacy plain output
-      if (parsed.output) {
-        setOutput(parsed.output as DecisionOutput & { actions: string[] });
-        setConversationId(parsed.conversationId ?? null);
-      } else {
-        setOutput(parsed as DecisionOutput & { actions: string[] });
-      }
-    } catch {
-      router.push("/hub");
-    }
+    if (!readHubResult()) router.push("/hub");
   }, [router]);
 
-  if (!output) {
+  if (!result) {
     return (
       <div
         className="flex items-center justify-center h-screen"
@@ -241,6 +40,7 @@ export default function HubResultPage() {
     );
   }
 
+  const { output, conversationId } = result;
   const {
     hubScore,
     rawDimensions,
@@ -398,11 +198,8 @@ export default function HubResultPage() {
             </button>
             <button
               onClick={() => {
-                if (conversationId && output) {
-                  sessionStorage.setItem(
-                    "hub_analysis_context",
-                    JSON.stringify(output),
-                  );
+                if (conversationId) {
+                  storeAnalysisContext(output);
                   router.push(
                     `/chat?conversationId=${encodeURIComponent(conversationId)}&fromAnalysis=true`,
                   );

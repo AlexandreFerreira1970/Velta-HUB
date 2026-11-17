@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* ─── Velta Design System ─── */
+/* --- Velta Design System --- */
 
 :root {
   /* Brand */
@@ -174,7 +174,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ─── Hub analysis overlay animations ───────────────────────────────────── */
+/* --- Hub analysis overlay animations ------------------------------------- */
 
 @keyframes hub-overlay-fade-in {
   from {

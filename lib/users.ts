@@ -1,5 +1,5 @@
 import { getContainer } from './cosmos'
-import type { VeltaUser } from './types'
+import type { UserProfileUpdate, VeltaUser } from './types'
 
 type UpsertInput = Omit<VeltaUser, 'createdAt' | 'updatedAt' | 'lastLoginAt'>
 
@@ -7,16 +7,10 @@ export async function upsertUser(data: UpsertInput): Promise<VeltaUser> {
   const container = await getContainer('users')
   const now = new Date().toISOString()
 
-  let existing: VeltaUser | undefined
-  try {
-    const { resource } = await container.item(data.id, data.id).read<VeltaUser>()
-    existing = resource
-  } catch {
-    // item not found — will create
-  }
+  const existing = await getUserById(data.id)
 
   const user: VeltaUser = {
-    ...existing,
+    ...(existing ?? {}),
     id: data.id,
     email: data.email,
     name: data.name,
@@ -33,7 +27,7 @@ export async function upsertUser(data: UpsertInput): Promise<VeltaUser> {
 
 export async function updateUserProfile(
   id: string,
-  data: { companyName?: string; businessType?: string; hubAnalysisDone?: boolean },
+  data: UserProfileUpdate,
 ): Promise<VeltaUser | null> {
   const existing = await getUserById(id)
   if (!existing) return null
