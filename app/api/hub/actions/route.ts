@@ -1,4 +1,4 @@
-import { defaultAgent, runAgent } from "@/lib/foundry";
+import { runAgent } from "@/lib/ai";
 import { formatActionsPrompt } from "@/lib/hub-prompts";
 import {
   badRequest,
@@ -19,7 +19,7 @@ export async function POST(req: Request): Promise<Response> {
     const { output } = (await req.json()) as { output: DecisionOutput };
     if (!output?.hubScore) return badRequest("output is required");
 
-    const text = await runAgent(defaultAgent(), formatActionsPrompt(output));
+    const text = await runAgent("assistant", formatActionsPrompt(output));
     console.log("[hub/actions] agent raw response:", text.slice(0, 500));
 
     const actions = text

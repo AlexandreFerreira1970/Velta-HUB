@@ -1,5 +1,19 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Configuração
+
+Copie `.env.example` para `.env.local` e preencha. Dois provedores são trocáveis só por variável de ambiente:
+
+| Variável      | Valores                       | O que muda                                                   |
+| ------------- | ----------------------------- | ------------------------------------------------------------ |
+| `AI_PROVIDER` | `azure` (padrão) \| `openai`  | Agentes do Azure AI Foundry ou API da OpenAI direto          |
+| `DB_PROVIDER` | `cosmos` (padrão) \| `neon`   | Azure Cosmos DB ou Postgres no Neon                          |
+
+- **OpenAI:** as instruções do assistente ficam em `lib/ai/instructions.ts` (no Azure, ficam no agente do Foundry — mantenha os dois iguais).
+- **Neon:** as tabelas são criadas automaticamente na primeira requisição (schema em `lib/db/neon/schema.ts`).
+- Trocar `DB_PROVIDER` **não migra dados**: o app passa a ler e gravar só no banco escolhido.
+- Trocar `AI_PROVIDER` no meio de uma conversa funciona: o histórico salvo é reenviado ao novo provedor.
+
 ## Getting Started
 
 First, run the development server:

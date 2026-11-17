@@ -5,16 +5,44 @@ import {
   markInitialAnalysisSent,
   updateHubQuestionIndex,
 } from "@/lib/conversations";
-import { defaultAgent, streamAgent } from "@/lib/foundry";
+import { streamAgent, type AgentInput } from "@/lib/ai";
+import { aiProvider } from "@/lib/env";
 import {
   badRequest,
   getSessionUserId,
   serverError,
   unauthorized,
 } from "@/lib/api";
-import type { ConversationState } from "@/lib/types";
+import type { ConversationDoc, ConversationState } from "@/lib/types";
 
 export const runtime = "nodejs";
+
+/**
+ * What to send to the AI. Normally just the new message, continuing from the
+ * previous response id. If that id came from another provider (AI_PROVIDER
+ * was switched mid-conversation) it is useless here, so the stored history is
+ * sent instead to keep the context.
+ */
+function buildAgentRequest(
+  existing: ConversationDoc | null,
+  content: string,
+): { input: AgentInput; previousResponseId: string | null } {
+  const lastId = existing?.lastResponseId ?? null;
+  if (!existing || !lastId) return { input: content, previousResponseId: null };
+
+  const lastProvider = existing.lastResponseProvider ?? "azure";
+  if (lastProvider === aiProvider()) {
+    return { input: content, previousResponseId: lastId };
+  }
+
+  return {
+    input: [
+      ...existing.messages.map(({ role, content }) => ({ role, content })),
+      { role: "user", content },
+    ],
+    previousResponseId: null,
+  };
+}
 
 // GET — load conversation history
 export async function GET(req: Request) {
@@ -51,7 +79,7 @@ export async function POST(req: Request) {
     if (!conversationId) return badRequest("conversationId is required");
 
     const existing = await getConversation(conversationId, userId);
-    const lastResponseId = existing?.lastResponseId ?? null;
+    const { input, previousResponseId } = buildAgentRequest(existing, content);
 
     await appendMessage(conversationId, userId, {
       role: "user",
@@ -70,9 +98,9 @@ export async function POST(req: Request) {
 
         try {
           for await (const { delta, responseId } of streamAgent(
-            defaultAgent(),
-            content,
-            lastResponseId,
+            "assistant",
+            input,
+            previousResponseId,
           )) {
             if (responseId) newResponseId = responseId;
             if (delta) {
@@ -88,7 +116,12 @@ export async function POST(req: Request) {
             timestamp: new Date().toISOString(),
           });
           if (newResponseId) {
-            await saveLastResponseId(conversationId, userId, newResponseId);
+            await saveLastResponseId(
+              conversationId,
+              userId,
+              newResponseId,
+              aiProvider(),
+            );
           }
 
           controller.enqueue(sse({ done: true }));

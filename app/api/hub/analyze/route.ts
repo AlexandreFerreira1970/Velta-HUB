@@ -1,5 +1,5 @@
 import { getConversation } from "@/lib/conversations";
-import { HUB_SCORE_AGENT, runAgent } from "@/lib/foundry";
+import { runAgent } from "@/lib/ai";
 import { runScoringEngine } from "@/lib/scoring";
 import { saveHubData } from "@/lib/hub";
 import {
@@ -35,7 +35,7 @@ export async function POST(req: Request): Promise<Response> {
     }));
     console.log("[hub/analyze] input:", input);
 
-    const text = await runAgent(HUB_SCORE_AGENT, input);
+    const text = await runAgent("hubScore", input);
     console.log("[hub/analyze] agent raw response:", text.slice(0, 500));
 
     // Extract the JSON object (tolerates text before/after it)

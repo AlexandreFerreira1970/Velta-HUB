@@ -30,6 +30,8 @@ export interface ConversationDoc {
   userId: string; // partition key
   title: string;
   lastResponseId: string | null;
+  /** AI provider that issued lastResponseId (missing on old docs = "azure"). */
+  lastResponseProvider?: "azure" | "openai";
   initialAnalysisMessageSentAt?: string; // ISO timestamp — set after AI generates initial analysis message
   hubQuestionIndex: number | null; // tracks current hub flow position; null = not in hub flow
   messages: ChatMessage[];
